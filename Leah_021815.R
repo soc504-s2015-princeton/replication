@@ -16,16 +16,21 @@ a <- c(1:32, "01", "02", "03", "04", "05", "06", "07", "08", "09")
 censo.muni <- filter(censo.1990, !(Clave %in% a))
 filter(censo.1990, Clave %in% a) #for reference. 
 
-#finding and filtering for percent of people living in towns of less than 2,500 for all municipalities
-#STOPPED HERE TO DEAL WITH OAXACA
-censo.muni$Total <- as.numeric(censo.muni$Total) #I don't know why this was coded incorrectly.
-censo.muni$Menos.2500 <- as.numeric(censo.muni$Menos.2500) #I don't know why this was coded incorrectly.
-censo.muni <- mutate(censo.muni, pct.rural = Menos.2500/Total)
-sample.muni <- filter(censo.muni, pct.rural > .75) 
-View(sample.muni)
+#separating Oaxaca into separate dataset
+Oaxaca <- filter(censo.muni, Clave %in% 20001:20570)
+Oaxaca <- filter(Oaxaca, !is.na(Menos.2500))
+censo.muni.noOax <- filter(censo.muni, !(Clave %in% 20001:20570))
+#havent converted them into distritos yet.
 
-#FOR SOME REASON I AM GETTING 545 instead of 697. WHAT AM I DOING WRONG?? Some ideas below:
-#His actual number is 686 after he dropped missing values. However, more than 11 municipios had missing values 
-#Note from paper "Municipalities belonging to the state of Oaxaca were grouped into 30 districts commonly used for statistical purposes (INEGI 2002)." 
-#Oaxaca has 570 municipios, more than any other state, which are grouped into 30 distritos. These do not seem to be included in the data. http://es.wikipedia.org/wiki/Regiones_de_Oaxaca
+#finding and filtering for percent of people living in towns of less than 2,500 for all municipalities
+censo.muni.noOax <- mutate(censo.muni.noOax, pct.rural = Menos.2500/Total)
+sample.muni.noOax <- filter(censo.muni.noOax, pct.rural > .75) 
+is.numeric(censo.muni.noOax$Total)
+is.numeric(censo.muni.noOax$Menos.2500)
+#these not coded as numeric. I tried telling R to code it as numbers using as.numeric, but this changes some of the numbers and screws things up. 
+#right now, we cant calculate the pct.rural because R doesnt think these columns are made up of numbers. Thoughts?
+
+
+
+
 
