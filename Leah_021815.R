@@ -23,12 +23,10 @@ censo.muni.noOax <- filter(censo.muni, !(Clave %in% 20001:20570))
 #havent converted them into distritos yet.
 
 #finding and filtering for percent of people living in towns of less than 2,500 for all municipalities
+as.numeric(as.character(censo.muni.noOax$Total))
+as.numeric(as.character(censo.muni.noOax$Menos.2500))
 censo.muni.noOax <- mutate(censo.muni.noOax, pct.rural = Menos.2500/Total)
 sample.muni.noOax <- filter(censo.muni.noOax, pct.rural > .75) 
-is.numeric(censo.muni.noOax$Total)
-is.numeric(censo.muni.noOax$Menos.2500)
-#these not coded as numeric. I tried telling R to code it as numbers using as.numeric, but this changes some of the numbers and screws things up. 
-#right now, we cant calculate the pct.rural because R doesnt think these columns are made up of numbers. Thoughts?
 
 
 
