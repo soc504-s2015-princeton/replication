@@ -49,9 +49,15 @@ distritos$distrito <- na.locf(distritos$distrito)
 distritos <- distritos %>%
   filter(!is.na(mun))
 
-##join distrito table with oaxaca population table by distrito and generate new muncodes with distrito number.
+
 ##filter out new municipalies(distritos) with les 75% of pop living in towns of less thatn 2500 pop.
 
+## creat a table to keep at hand showing which of the municipalities  is in which distrito
+oaxaca.mun <- oaxaca.pop %>%
+  left_join(distritos, oaxaca.pop, by = "muncode") %>%
+  select(muncode, less2500, total, prop, distrito) 
+
+##join distrito table with oaxaca population table by distrito and generate new muncodes with distrito number.
 oaxaca.dist <- oaxaca.pop %>%
   left_join(distritos, oaxaca.pop, by = "muncode") %>%
   group_by(distrito) %>%
