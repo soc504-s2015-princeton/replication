@@ -58,6 +58,7 @@ oaxaca.mun <- oaxaca.pop %>%
   select(muncode, less2500, total, prop, distrito) 
 
 ##join distrito table with oaxaca population table by distrito and generate new muncodes with distrito number.
+##filter out new municipalies(distritos) with les 75% of pop living in towns of less thatn 2500 pop.
 oaxaca.dist <- oaxaca.pop %>%
   left_join(distritos, oaxaca.pop, by = "muncode") %>%
   group_by(distrito) %>%
