@@ -21,7 +21,7 @@ Oaxaca <- filter(censo.muni, Clave %in% 20001:20570)
 Oaxaca <- filter(Oaxaca, !is.na(Menos.2500))
 censo.muni.noOax <- filter(censo.muni, !(Clave %in% 20001:20570))
 #havent converted them into distritos yet.
-
+ 
 #finding and filtering for percent of people living in towns of less than 2,500 for all municipalities
 censo.muni.noOax$Total <- as.numeric(as.character(censo.muni.noOax$Total))
 censo.muni.noOax$Menos.2500 <- as.numeric(as.character(censo.muni.noOax$Menos.2500))
@@ -111,3 +111,9 @@ homs_oax <- filter(homicides, !(Clave %in% a)) %>% #same
   filter(Clave %in% Oaxaca$Clave) %>%
   mutate(Hom_rate = ((Hom_1990 + Hom_1991 + Hom_1992)/(3*Total))*100,000)
 
+#adding dummy variable for DF
+censo.muni.noOax$Clave <- as.numeric(as.character(censo.muni.noOax$Clave))
+censo.muni.noOax <- mutate(censo.muni.noOax, dummy_DF = as.numeric(Clave %in% 09002:09017))
+
+#I dont think we have the right data downloaded for % young males or illiteracy
+# % young males we have % males and females, and numbers for different age brackets, but not separated by gender
