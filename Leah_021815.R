@@ -114,7 +114,7 @@ homs_oax <- filter(homicides, !(Clave %in% a)) %>% #same
 #DUMMY VARIABLE
 #adding dummy variable for state of Mexico
 censo.muni.noOax$Clave <- as.numeric(as.character(censo.muni.noOax$Clave))
-censo.muni.noOax <- mutate(censo.muni.noOax, dummy_DF = as.numeric(Clave %in% 15001:15125))
+censo.muni.noOax <- mutate(censo.muni.noOax, dummy_SOM = as.numeric(Clave %in% 15001:15125))
 
 #I dont think we have the right data downloaded for % young males or illiteracy
 # % young males we have % males and females, and numbers for different age brackets, but not separated by gender
