@@ -197,6 +197,33 @@ distritos <- distritos %>%
   filter(!is.na(mun))
 
 
+#the percentage of rural production units of five hectares of land or less, 
+#the log of the average plot size, 
+#and the log of persons per hectare of agricultural land
+#the log of maize yields (expressed as tons per hectare) 
+##with the unusual advantage that the exact mean of each category of plot size 
+##is known (since both the total surface area and the number of units 
+##in each of the eight plot size categories are known).
+##percentage of the rural surface area in each municipality constituted by ejidos and 
+##communal units according to the Agricultural and Livestock Census
+##the percentage of subsistence agricultural units, defined as those 
+##producing only for internal consumption within the household and not for sale in the market.
+##the percentage of agricultural units with individual (as opposed to group) organization of production.
+##the percentage of units dedicated to harvesting coffee and raising cattle.
+
+
+
+
+
+land.area <- read.csv(file="data/censo_agricola_1991_land_area.csv", skip = 3, header = TRUE, encoding = "latin1")
+land.area <- tbl_df(land.area)
+
+
+
+
+
+
+
 #filter out new municipalies(distritos) with les 75% of pop living in towns of less thatn 2500 pop.
 
 ## creat a table to keep at hand showing which of the municipalities  is in which distrito
