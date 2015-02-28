@@ -197,7 +197,7 @@ distritos <- distritos %>%
   filter(!is.na(mun))
 
 
-##filter out new municipalies(distritos) with les 75% of pop living in towns of less thatn 2500 pop.
+#filter out new municipalies(distritos) with les 75% of pop living in towns of less thatn 2500 pop.
 
 ## creat a table to keep at hand showing which of the municipalities  is in which distrito
 #oaxaca.mun <- oaxaca %>%
