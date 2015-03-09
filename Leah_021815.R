@@ -116,5 +116,25 @@ homs_oax <- filter(homicides, !(Clave %in% a)) %>% #same
 censo.muni.noOax$Clave <- as.numeric(as.character(censo.muni.noOax$Clave))
 censo.muni.noOax <- mutate(censo.muni.noOax, dummy_SOM = as.numeric(Clave %in% 15001:15125))
 
-#I dont think we have the right data downloaded for % young males or illiteracy
-# % young males we have % males and females, and numbers for different age brackets, but not separated by gender
+#% rural surface area in ejidos/comunal units
+#Censo Agricola TAB05 col (D + E)/C * 100
+
+#% subsistence agriculture
+#Censo Agricola TAB10 col F/E*100
+
+#log persons per hectare of agricultural land
+#hectares of agricultural land TAB10 col E? 
+
+#% agriculture units dedicated to coffee and cattle
+#Cattle agricultural unity TAB11A Col E?
+
+#THINGS I DONT THINK WE CAN DO WITH THE DATA WE HAVE
+#% rural production units 5 hectares or less
+#log average plot size
+#log maize yield
+#Inequality in land distribution (Thiele index)
+#% agriculture units with individual production
+
+#filter out oaxaca municipios before filtering happens
+#re-do all variables for oaxaca dataset only
+#re-add those rows to the final dataset
