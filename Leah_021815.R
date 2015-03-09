@@ -134,3 +134,7 @@ censo.muni.noOax <- mutate(censo.muni.noOax, dummy_SOM = as.numeric(Clave %in% 1
 #log maize yield
 #Inequality in land distribution (Thiele index)
 #% agriculture units with individual production
+
+#filter out oaxaca municipios before filtering happens
+#re-do all variables for oaxaca dataset only
+#re-add those rows to the final dataset
