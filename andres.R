@@ -3,6 +3,8 @@ library(dplyr)
 library(xlsx)
 library(zoo)
 library(foreign)
+library(tidyr)
+library(gdata)
 
 
 ##load main 1990 censo database from inegi to the town level
@@ -304,3 +306,50 @@ oaxaca.mun <- oaxaca %>%
 
 ## Yeiii!!! 697 municipalities, just like Villareal.
 sample <- rbind(main, oax.main)
+
+##agricultural variables
+
+##load all the files
+land <- read.csv(file="data/censo_agricola_1991_land_area.csv", header=FALSE, skip = 8, stringsAsFactors = FALSE)
+land <- tbl_df(land)
+subs <- read.csv("data/censo_agricola_1991_autoconsumo.csv", header = FALSE, skip = 11, stringsAsFactors = FALSE)
+subs <- tbl_df(subs)
+cattle <- read.csv("data/censo_agricola_1991_cattle.csv", header = FALSE, skip = 10, stringsAsFactors = FALSE)
+cattle <- tbl_df(cattle)
+corn <- read.csv("data/censo_agricola_1991_corn.csv", header = FALSE, skip = 6187, nrows = 2426, stringsAsFactors = FALSE)
+corn <- tbl_df(corn)
+
+##function that corrects municipality names and creates a new variable
+##with pasted municipality name and state
+naming <- function(df) {
+  df$V3 <- gsub("[[:space:]]", "", df$V3)
+  df$V4 <- gsub("[[:space:]]", "", df$V4)
+  df$V5 <- gsub("[[:space:]]", "", df$V5)
+  df$V6 <- gsub("[[:space:]]", "", df$V6)
+  
+  
+  df1 <- df %>%
+    select(state = V1, mun = V2, V3, V4, V5, V6) %>%
+    mutate(state = as.character(state), mun = as.character(mun), 
+           V3 = as.numeric(V3), V4 = as.numeric(V4),
+           V5 = as.numeric(V5), V6 = as.numeric(V6))             
+  
+  
+  df1$state[df1$state == ""] <- NA
+  df1$mun[df1$mun == ""] <- NA
+  df1$state <- na.locf(df1$state)
+  
+  df1 <- df1 %>%
+    separate(mun, into = c("mun", "art"), sep = ",", extra = "merge") %>%
+    trim(land1$art) %>%
+    mutate(mun = ifelse(!is.na(art), paste(art, mun, sep = " "), mun)) %>%
+    filter(!is.na(mun)) %>%
+    mutate(name = paste(mun, state, sep = ", "))
+         
+}
+
+##run the naming function for each file
+land <- naming(land)
+subs <- naming(subs)
+cattle <- naming(cattle)
+corn <- naming(corn)
