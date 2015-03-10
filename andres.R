@@ -33,6 +33,7 @@ mun.total <- left_join(mun.total, less.2500, by = "muncode")
 
 #filtering out Oaxaca municipalities for analysis later
 oaxaca <- filter(mun.total, muncode %in% 20001:20570) 
+oaxaca$pop.less.2500[is.na(oaxaca$pop.less.2500)] <- 0
 
 mun.total <- filter(mun.total, !(muncode %in% 20001:20570))
 
@@ -58,21 +59,19 @@ elev <- elev %>%
   filter(!is.na(elev))
 
 #separating out oaxaca 
-#THERE COULD BE A PROBLEM HERE DUE TO ADDITIONAL/CHANGED MUNICIPALITY CODES FOR OAXACA, ALSO WITH TWN/MUN CODING FOR OAXACA
 elev.oax <- filter(elev, muncode %in% 20001:20570) 
 elev <- filter(elev, !(muncode %in% 20001:20570))
 
-##table with standard deviation for elevation among towns in a municipality
+#table with standard deviation for elevation among towns in a municipality
 elev <- elev %>%
   group_by(muncode) %>%
   summarise(sd.elev = sd(elev))
-
 
 ##POPULATION DENSITY
 ##pull data with municipal area in meters to calculate population density, there is no GIS map, 
 ## for 1990, oldest one is 1995.#THERE COULD BE A PROBLEM HERE DUE TO ADDITIONAL/CHANGED MUNICIPALITY CODES FOR OAXACA
 
-map1995 <- read.dbf("data/inegi_map1995.dbf")
+map1995 <- read.dbf("data/inegi_map1995.DBF")
 map1995 <- tbl_df(map1995)
 
 ## area of each municipality in squared kilometers
@@ -105,6 +104,8 @@ docs[is.na(docs)] <- 0
 
 #separating out oaxaca
 docs.oax <- filter(docs, muncode %in% 20001:20570)
+colnames(docs.oax) <- c("muncode", "total.d", "doctors")
+
 docs <- filter(docs, !(muncode %in% 20001:20570))
 
 ##create variable with doctors por 10000 population
@@ -194,12 +195,12 @@ prct.young <- right_join(young, mun.total, by = "muncode") %>%
 
 ##join all new variables to creat the main data frame with control and dependent variables
 
-main <- left_join(mun.total, elev, by = "muncode")
-main <- left_join(main, pop.dens, by = "muncode")
+main <- left_join(mun.total, pop.dens, by = "muncode")
 main <- left_join(main, docs.per.10k, by = "muncode")
 main <- left_join(main, fems, by = "muncode")
 main <- left_join(main, prct.young, by = "muncode")
 main <- left_join(main,  homicide.rate, by = "muncode")
+main <- left_join(main, elev, by = "muncode")
 
 #DUMMY VARIABLE
 #adding dummy variable for state of Mexico
@@ -271,34 +272,42 @@ land.area <- tbl_df(land.area)
 >>>>>>> e8d61049ec89fe2f040cc5c1d7ff29adec07a634
 ##join distrito table with oaxaca population table by distrito and generate new muncodes with distrito number.
 ##filter out new municipalies(distritos) with more than 75% of pop living in towns of less thatn 2500 pop.
+oaxaca$pop.less.2500[is.na(oaxaca$pop.less.2500)] <- 0
+
 oaxaca.dist <- oaxaca %>%
   left_join(distritos, oaxaca, by = "muncode") 
-oaxaca.dist <- left_join(oaxaca.dist, elev.oax, by = "muncode")
 oaxaca.dist <- left_join(oaxaca.dist, area.oax, by = "muncode")
 oaxaca.dist <- left_join(oaxaca.dist, docs.oax, by = "muncode")
 oaxaca.dist <- left_join(oaxaca.dist, fems.oax, by = "muncode")
+oaxaca.dist <- left_join(oaxaca.dist, young.oax, by = "muncode") 
 oaxaca.dist <- left_join(oaxaca.dist, homicides.oax, by = "muncode")
-oaxaca.dist <- left_join(oaxaca.dist, young.oax, by = "muncode")
   
 oaxaca.dist <- oaxaca.dist  %>% #add the rest of the permutations  
-  group_by(distrito) %>% #will this work as a giant chunk? or will the different sample sizes cause a problem (due to NAs?)
+  group_by(distrito) %>% 
   summarise(pop.less.2500 = sum(pop.less.2500), total.pop = sum(total.pop), prop.less.2500 = pop.less.2500/total.pop,
             indi = sum(indi), prop.indi = indi/total.pop, 
             no.literacy = sum(no.literacy), prop.no.lit = no.literacy/total.pop,
             sqkm = sum(sqkm), pop.dens = total.pop/sqkm, 
             doctors = sum(doctors), docs.per.10k = (doctors/total.pop)*10000, 
             fem.house = sum(fem.house), total = sum(total), pct.fem.house = fem.house/total,
-            hom.total = sum(hom.total), home.rate = hom.total/(total.pop*3)*100000,
             young.total = sum(young.total), prct.young = young.total/total.pop, 
-            sd.elev = sd(elev.oax)) %>%
+            hom.total = sum(hom.total), hom.rate = hom.total/(total.pop*3)*100000) %>%
   mutate(muncode = distrito + 20000) %>%
-  select(muncode, total.pop, prop.less.2500, prop.indi, prop.no.lit, pop.dens, docs.per.10k, pct.fem.house, hom.rate, prct.young, elev.oax) 
+  select(muncode, total.pop, prop.less.2500, prop.indi, prop.no.lit, pop.dens, docs.per.10k, pct.fem.house, prct.young, hom.rate) 
 
-#filtering to oaxaca sample, adding SOM dummy variable
+#getting SD of elevation and SOM dummy variable and then adding them to the oaxaca dataset
+elev.oax <- left_join(distritos, elev.oax, by = "muncode") %>%
+  group_by(distrito) %>%
+  summarise(sd.elev = sd(elev)) %>%
+  mutate(muncode = distrito + 20000, dummy.SOM = 0) %>%
+  select(muncode, sd.elev, dummy.SOM)
+
+oaxaca.dist <- left_join(oaxaca.dist, elev.oax, by = "muncode")
+
+#filtering to oaxaca sample 
 oax.main <- oaxaca.dist %>%  
-  filter(prop.less.2500 > .75) %>%
-  mutate(dummy.SOM = 0)
-
+  filter(prop.less.2500 > .75) 
+  
 ## create a table to keep at hand showing which of the municipalities  is in which distrito
 oaxaca.mun <- oaxaca %>%
   left_join(distritos, oaxaca, by = "muncode") %>%
@@ -307,6 +316,7 @@ oaxaca.mun <- oaxaca %>%
 ## Yeiii!!! 697 municipalities, just like Villareal.
 sample <- rbind(main, oax.main)
 
+<<<<<<< HEAD
 ##agricultural variables
 
 ##load all the files
@@ -353,3 +363,17 @@ land <- naming(land)
 subs <- naming(subs)
 cattle <- naming(cattle)
 corn <- naming(corn)
+=======
+
+#OLD CODE TO CHECK OAXACA SAMPLE
+##join distrito table with oaxaca population table by distrito and generate new muncodes with distrito number.
+##filter out new municipalies(distritos) with les 75% of pop living in towns of less thatn 2500 pop.
+#oaxaca.dist1 <- oaxaca %>%
+  #left_join(distritos, oaxaca, by = "muncode") %>%
+  #group_by(distrito) %>%
+  #summarise(pop.less.2500 = sum(pop.less.2500), total.pop = sum(total.pop), prop.2500 = pop.less.2500/total.pop) %>% 
+  #mutate(muncode = distrito + 20000) %>%
+  #select(muncode, pop.less.2500, total.pop, prop.2500) %>%
+  #filter(prop.2500 > .75)
+
+>>>>>>> 9c9b11eef7fc3661c25e9f838b245ffbe7766a63
