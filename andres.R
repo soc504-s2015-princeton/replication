@@ -8,13 +8,13 @@ library(gdata)
 
 
 ##load main 1990 censo database from inegi to the town level
-censo90 <- read.table("data/censo_1990_37_var.txt", header = TRUE, sep = "\t")
+censo90 <- read.table("data/censo_1990_37_var.txt", header = TRUE, sep = "\t", encoding = "latin1")
 
 ##create table with variables of interest and population
 censo.1 <- tbl_df(censo90) %>%
   filter(mun !=0 ) %>%
   select(state = entidad, mun, twn = loc, total.pop = p_total, no.literacy = analfbet,
-         n_hab_esp, habla_esp) %>%
+         n_hab_esp, habla_esp, state_name = nom_ent, mun_name = nom_mun) %>%
   mutate(indi = as.numeric(as.character(n_hab_esp)) + as.numeric(as.character(habla_esp)), 
          muncode = (state * 1000) + mun, no.literacy = as.numeric(as.character(no.literacy))) %>%
   filter(muncode > 1000) %>%
@@ -30,6 +30,19 @@ less.2500 <- censo.1 %>%
   summarise (pop.less.2500 = sum(total.pop))
 
 mun.total <- left_join(mun.total, less.2500, by = "muncode")
+
+##change names to capital letters and remove accents
+mun.total$state_name <- toupper(mun.total$state_name)
+mun.total$state_name <- gsub("`|\\'", "", iconv(mun.total$state_name, to="ASCII//TRANSLIT"))
+mun.total$state_name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", mun.total$state_name)
+mun.total$state_name <- gsub("VERACRUZ DE IGNACIO DE LA LLAVE", "VERACRUZ", mun.total$state_name)
+mun.total$state_name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", mun.total$state_name)
+
+##change names to capital letters and remove accents
+
+mun.total$mun_name <- toupper(mun.total$mun_name)
+mun.total$mun_name <- gsub("`|\\'", "", iconv(mun.total$mun_name, to="ASCII//TRANSLIT"))
+mun.total$mun_name <- gsub("~","", mun.total$mun_name)
 
 #filtering out Oaxaca municipalities for analysis later
 oaxaca <- filter(mun.total, muncode %in% 20001:20570) 
@@ -203,10 +216,12 @@ main <- left_join(main,  homicide.rate, by = "muncode")
 main <- left_join(main, elev, by = "muncode")
 
 #DUMMY VARIABLE
-#adding dummy variable for state of Mexico
+#adding dummy variable for state of Mexico and creating name variable, in
+##order to join with agricultural variables dataframe
 
 main <- main %>% 
-  mutate(dummy.SOM = as.numeric(muncode %in% 15001:15125))
+  mutate(dummy.SOM = as.numeric(muncode %in% 15001:15125)) %>%
+  mutate(name = paste(mun_name, state_name, sep = ", "))
   
 #filter out all municipalities with more than 75% of pop living in towns of less than 2500 pop 
 main <- filter(main, prop.less.2500 > .75)
@@ -247,16 +262,6 @@ distritos <- distritos %>%
 ##producing only for internal consumption within the household and not for sale in the market.
 ##the percentage of agricultural units with individual (as opposed to group) organization of production.
 ##the percentage of units dedicated to harvesting coffee and raising cattle.
-
-
-
-
-
-land.area <- read.csv(file="data/censo_agricola_1991_land_area.csv", skip = 3, header = TRUE, encoding = "latin1")
-land.area <- tbl_df(land.area)
-
-
-
 
 
 
@@ -316,17 +321,19 @@ oaxaca.mun <- oaxaca %>%
 ## Yeiii!!! 697 municipalities, just like Villareal.
 sample <- rbind(main, oax.main)
 
-<<<<<<< HEAD
+
 ##agricultural variables
 
 ##load all the files
-land <- read.csv(file="data/censo_agricola_1991_land_area.csv", header=FALSE, skip = 8, stringsAsFactors = FALSE)
+prod_units <- read.csv(file="data/censo_agricola_1991_produnits.csv", header=FALSE, skip = 8, stringsAsFactors = FALSE, encoding = "UTF-8")
+prod_units <- tbl_df(prod_units)
+land <- read.csv(file="data/censo_agricola_1991_land_area.csv", header=FALSE, skip = 8, stringsAsFactors = FALSE, encoding = "UTF-8")
 land <- tbl_df(land)
-subs <- read.csv("data/censo_agricola_1991_autoconsumo.csv", header = FALSE, skip = 11, stringsAsFactors = FALSE)
+subs <- read.csv("data/censo_agricola_1991_autoconsumo.csv", header = FALSE, skip = 11, stringsAsFactors = FALSE, encoding = "UTF-8")
 subs <- tbl_df(subs)
-cattle <- read.csv("data/censo_agricola_1991_cattle.csv", header = FALSE, skip = 10, stringsAsFactors = FALSE)
+cattle <- read.csv("data/censo_agricola_1991_cattle.csv", header = FALSE, skip = 10, stringsAsFactors = FALSE, encoding = "UTF-8")
 cattle <- tbl_df(cattle)
-corn <- read.csv("data/censo_agricola_1991_corn.csv", header = FALSE, skip = 6187, nrows = 2426, stringsAsFactors = FALSE)
+corn <- read.csv("data/censo_agricola_1991_corn.csv", header = FALSE, skip = 6187, nrows = 2426, stringsAsFactors = FALSE, encoding = "UTF-8")
 corn <- tbl_df(corn)
 
 ##function that corrects municipality names and creates a new variable
@@ -347,6 +354,7 @@ naming <- function(df) {
   
   df1$state[df1$state == ""] <- NA
   df1$mun[df1$mun == ""] <- NA
+  df1$mun <- gsub("\x84", "N",df1$mun) 
   df1$state <- na.locf(df1$state)
   
   df1 <- df1 %>%
@@ -354,16 +362,69 @@ naming <- function(df) {
     trim(land1$art) %>%
     mutate(mun = ifelse(!is.na(art), paste(art, mun, sep = " "), mun)) %>%
     filter(!is.na(mun)) %>%
-    mutate(name = paste(mun, state, sep = ", "))
+    mutate(name = paste(mun, state, sep = ", ")) %>%
+    select(-art)
          
 }
 
 ##run the naming function for each file
+prod_units <- naming(prod_units)
 land <- naming(land)
 subs <- naming(subs)
 cattle <- naming(cattle)
 corn <- naming(corn)
-=======
+
+
+##get total producton units
+prod_units[is.na(prod_units)] <- 0
+prod_units1 <- prod_units %>%
+  select(name, total_prod_units = V3) %>%
+  mutate(total_prod_units = as.numeric((total_prod_units)))
+
+
+
+##calculate proportions for land surface are according to property
+##type
+land[is.na(land)] <- 0
+land1 <- land %>%
+  select(name, total_area = V3, ejidal = V4, 
+         comunal = V5,  private = V6) %>%
+  mutate(total_area = as.numeric((total_area)), 
+         ejidal = as.numeric(ejidal), 
+         comunal = as.numeric(comunal), 
+         private = as.numeric(private),
+         prop.ej.comm = (ejidal+comunal)/total_area *100, 
+         prop.individual = private/total_area*100)
+
+##calculate proportion of units dedicate to subsistance farming
+
+subs[is.na(subs)] <- 0
+subs1 <- subs %>%
+  select(name, total_units = V5, subs_units = V6) %>%
+  mutate(total_units = as.numeric((total_units)), 
+         subs_units = as.numeric(subs_units), 
+         prop.subs = (subs_units/total_units *100))
+
+
+## proportion of units with cattle needs to be calculate from 
+##total production units.
+cattle[is.na(cattle)] <- 0
+cattle1 <- cattle %>%
+  select(name, total_cattle_units = V5)
+
+##maize yields in ton per hectare
+corn$V6[is.na(corn$V6)] <- 0
+corn1 <- corn %>%
+  select(name, corn_tons = V5)
+
+
+agr_var <- left_join(prod_units1, land1, by = "name")
+agr_var <- left_join(agr_var, subs1, by = "name" )
+agr_var <- left_join(agr_var, corn1, by = "name" )
+agr_var <- left_join(agr_var, cattle1, by = "name" )
+
+##join all control variables with agricultrual variables
+final.df <- left_join(agr_var, main, by = "name")
 
 #OLD CODE TO CHECK OAXACA SAMPLE
 ##join distrito table with oaxaca population table by distrito and generate new muncodes with distrito number.
