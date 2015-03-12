@@ -8,7 +8,8 @@ library(gdata)
 
 
 ##load main 1990 censo database from inegi to the town level
-censo90 <- read.table("data/censo_1990_37_var.txt", header = TRUE, sep = "\t", encoding = "latin1")
+censo90 <- read.table("data/censo_1990_37_var.txt", 
+                      header = TRUE, sep = "\t", encoding = "latin1")
 
 ##create table with variables of interest and population
 censo.1 <- tbl_df(censo90) %>%
