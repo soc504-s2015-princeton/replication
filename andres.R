@@ -6,7 +6,6 @@ library(foreign)
 library(tidyr)
 library(gdata)
 
-
 ##load main 1990 censo database from inegi to the town level
 censo90 <- read.table("data/censo_1990_37_var.txt", 
                       header = TRUE, sep = "\t", encoding = "latin1")
@@ -248,34 +247,6 @@ distritos$distrito <- na.locf(distritos$distrito)
 distritos <- distritos %>%
   filter(!is.na(mun))
 
-<<<<<<< HEAD
-
-#the percentage of rural production units of five hectares of land or less, 
-#the log of the average plot size, 
-#and the log of persons per hectare of agricultural land
-#the log of maize yields (expressed as tons per hectare) 
-##with the unusual advantage that the exact mean of each category of plot size 
-##is known (since both the total surface area and the number of units 
-##in each of the eight plot size categories are known).
-##percentage of the rural surface area in each municipality constituted by ejidos and 
-##communal units according to the Agricultural and Livestock Census
-##the percentage of subsistence agricultural units, defined as those 
-##producing only for internal consumption within the household and not for sale in the market.
-##the percentage of agricultural units with individual (as opposed to group) organization of production.
-##the percentage of units dedicated to harvesting coffee and raising cattle.
-
-
-
-
-#filter out new municipalies(distritos) with les 75% of pop living in towns of less thatn 2500 pop.
-
-## creat a table to keep at hand showing which of the municipalities  is in which distrito
-#oaxaca.mun <- oaxaca %>%
-#  left_join(distritos, oaxaca, by = "muncode") %>%
-#  select(muncode, less2500, total, prop2500, distrito) 
-
-=======
->>>>>>> e8d61049ec89fe2f040cc5c1d7ff29adec07a634
 ##join distrito table with oaxaca population table by distrito and generate new muncodes with distrito number.
 ##filter out new municipalies(distritos) with more than 75% of pop living in towns of less thatn 2500 pop.
 oaxaca$pop.less.2500[is.na(oaxaca$pop.less.2500)] <- 0
@@ -322,9 +293,7 @@ oaxaca.mun <- oaxaca %>%
 ## Yeiii!!! 697 municipalities, just like Villareal.
 sample <- rbind(main, oax.main)
 
-
-##agricultural variables
-
+#agricultural variables
 ##load all the files
 prod_units <- read.csv(file="data/censo_agricola_1991_produnits.csv", header=FALSE, skip = 8, stringsAsFactors = FALSE, encoding = "UTF-8")
 prod_units <- tbl_df(prod_units)
@@ -351,7 +320,6 @@ naming <- function(df) {
     mutate(state = as.character(state), mun = as.character(mun), 
            V3 = as.numeric(V3), V4 = as.numeric(V4),
            V5 = as.numeric(V5), V6 = as.numeric(V6))             
-  
   
   df1$state[df1$state == ""] <- NA
   df1$mun[df1$mun == ""] <- NA
@@ -383,9 +351,7 @@ prod_units1 <- prod_units %>%
   mutate(total_prod_units = as.numeric((total_prod_units)))
 
 
-
-##calculate proportions for land surface are according to property
-##type
+##calculate proportions for land surface area according to property type
 land[is.na(land)] <- 0
 land1 <- land %>%
   select(name, total_area = V3, ejidal = V4, 
@@ -427,6 +393,13 @@ agr_var <- left_join(agr_var, cattle1, by = "name" )
 ##join all control variables with agricultrual variables
 final.df <- left_join(agr_var, main, by = "name")
 
+##agricultural variables still needed
+#the percentage of rural production units of five hectares of land or less 
+#the log of the average plot size
+#Thiel's index
+##the percentage of units dedicated to harvesting coffee
+#the log of persons per hectare of agricultural land
+
 #OLD CODE TO CHECK OAXACA SAMPLE
 ##join distrito table with oaxaca population table by distrito and generate new muncodes with distrito number.
 ##filter out new municipalies(distritos) with les 75% of pop living in towns of less thatn 2500 pop.
@@ -438,4 +411,4 @@ final.df <- left_join(agr_var, main, by = "name")
   #select(muncode, pop.less.2500, total.pop, prop.2500) %>%
   #filter(prop.2500 > .75)
 
->>>>>>> 9c9b11eef7fc3661c25e9f838b245ffbe7766a63
+

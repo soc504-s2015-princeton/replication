@@ -58,3 +58,6 @@ homicide.rate <- right_join(homicides, mun.total, by = "muncode") %>%
   select(name, hom.rate) %>%
   filter(!is.na(name))
 colnames(homicide.rate) <- c("id", "hom.rate")
+
+http://spatioanalytics.com/2014/02/20/shapefile-polygons-plotted-on-google-maps-using-ggplot-throw-some-throw-some-stats-on-that-mappart-2/
+http://stackoverflow.com/questions/17723822/administrative-regions-map-of-a-country-with-ggmap-and-ggplot2
