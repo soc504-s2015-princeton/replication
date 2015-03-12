@@ -1,0 +1,84 @@
+---
+title: "Replication Project"
+author: "Reisman and Lajous"
+date: "March 11, 2015"
+output: html_document
+---
+
+We chose to replicate Andrés Villarreal's 2004 AJS paper, "The Social Ecology of Rural Violence: Land Scarcity, the Organization of Agricultural Production, and the Presence of the State."
+Applying an ecological theory of crime to the study of rural violence in Mexico, Villarreal attempts explain the fact that rural municipalities have high variation in homicide rates by investigating the effects of land distribution, collective ownership, and the organization of agricultural production on homicide rates. He tests five specific hypotheses: (1) When agricultural land is scarce relative to the number of individuals, there will be more conflict and therefore more homicides; (2) An unequal distribution of land will lead to more violent conflict; (3) When property rights are not well enforced or are contingent, there will be more conflict over lands. For this reason, ejido and communal units will experience more violence; (4) agricultural production systems that involve more commodified relations of production and exchange will be associated with a breakdown of community social cohesion and therefore with more violence, and the introduction of cash crops will lead to greater conflict over resources and control over trade, and consequently to more violence; and (5) remote mountainous areas will have higher rates of violence due to the absence of state institutions.
+
+The sample of rural municipalities is drawn from the 1990 Mexican census, and is defined as all municipalities in which more than 75% of the population lives in towns of less than 2,500 residents, and homicide rates are calculated from Mexican vital statistics data over 1990-1992. Variables for land scarcity (4 measures—% rural production units 5 hectares or less, log average plot size, log persons per hectare of agricultural land, log maize yield), inequality in land distribution (1 measure—Thiele index), collective ownership (1 measure--% rural surface area made up of ejidos and communal units), and organization of agricultural production (4 measures--% subsistence agriculture, % agriculture units with individual production, % agriculture units dedicated to coffee and cattle) are drawn from the 1991 Agricultural and Livestock Census. Six control variables are employed—log population density, % young males in population, % residents who speak an indigenous language, illiteracy rate, % female-headed households, dummy variable to control for municipalities in the state of Mexico that are technically rural but located close to Mexico City. Access to state institutions is measured by variation in municipality altitude, taken from topographical data. The 5 hypotheses were tested using negative binomial regressions. Higher land scarcity and agricultural units organized by group were not found to be associated with higher homicide rates, but unequal distribution of land and high percentages of communal and ejido land were associated with higher homicide rates, as were higher rates of coffee and cattle production. Finally, remote mountainous municipalities that were isolated from state institutions had higher homicide rates.
+
+Preparing the Dataset for Analysis:
+
+"The hypotheses are tested using a sample of rural municipalities in Mexico. The sample of rural municipalities is constructed by selecting all municipalities in which more than 75% of the population lives in towns of less than 2,500 residents. A total of 697 municipalities (37% of all municipalities in the country) satisfy this criterion and are therefore included in the sample (minus some eliminated due to missing values).""
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(xlsx)
+library(zoo)
+library(foreign)
+library(tidyr)
+library(gdata)
+
+##load main 1990 censo database from inegi to the town level
+censo90 <- read.table("data/censo_1990_37_var.txt", header = TRUE, sep = "\t", encoding = "latin1")
+
+##create table with variables of interest and population
+censo.1 <- tbl_df(censo90) %>%
+  filter(mun !=0 ) %>%
+  select(state = entidad, mun, twn = loc, total.pop = p_total, no.literacy = analfbet,
+         n_hab_esp, habla_esp, state_name = nom_ent, mun_name = nom_mun) %>%
+  mutate(indi = as.numeric(as.character(n_hab_esp)) + as.numeric(as.character(habla_esp)), 
+         muncode = (state * 1000) + mun, no.literacy = as.numeric(as.character(no.literacy))) %>%
+  filter(muncode > 1000) %>%
+  select(muncode, twn:indi, -state, -mun, -n_hab_esp,-habla_esp)
+
+## create variable for population in towns of less than 2500 population
+mun.total <- censo.1 %>%
+  filter(twn == 0)
+
+less.2500 <- censo.1 %>%
+  filter(twn != 0 & twn != 9998 & twn != 9999, total.pop < 2500) %>%
+  group_by(muncode) %>%
+  summarise (pop.less.2500 = sum(total.pop))
+
+mun.total <- left_join(mun.total, less.2500, by = "muncode")
+
+##change names to capital letters and remove accents
+mun.total$state_name <- toupper(mun.total$state_name)
+mun.total$state_name <- gsub("`|\\'", "", iconv(mun.total$state_name, to="ASCII//TRANSLIT"))
+mun.total$state_name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", mun.total$state_name)
+mun.total$state_name <- gsub("VERACRUZ DE IGNACIO DE LA LLAVE", "VERACRUZ", mun.total$state_name)
+mun.total$state_name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", mun.total$state_name)
+
+##change names to capital letters and remove accents
+
+mun.total$mun_name <- toupper(mun.total$mun_name)
+mun.total$mun_name <- gsub("`|\\'", "", iconv(mun.total$mun_name, to="ASCII//TRANSLIT"))
+mun.total$mun_name <- gsub("~","", mun.total$mun_name)
+
+#filtering out Oaxaca municipalities for analysis later
+oaxaca <- filter(mun.total, muncode %in% 20001:20570) 
+oaxaca$pop.less.2500[is.na(oaxaca$pop.less.2500)] <- 0
+
+mun.total <- filter(mun.total, !(muncode %in% 20001:20570))
+
+##create variables with proportion of people living in towns of less than 2500, proportion
+## of indigenous speakers and proportion of illiteracy
+mun.total <- mun.total %>%
+  mutate(prop.less.2500 = pop.less.2500/total.pop, prop.indi = indi/total.pop, 
+         prop.no.lit = no.literacy/total.pop) %>%
+  select(-twn, -no.literacy, -indi, -pop.less.2500)
+```
+
+"The number of homicides are obtained from vital statistics compiled by the Mexican government. In order to smooth out yearly fluctuations, the total number of homicides over a three-year period (1990– 92) is used, and the population at risk is assumed to be three times the municipal population. 
+
+```{r}
+
+```
+
+Population estimates and all socioeconomic variables
+used as controls are drawn from the 1990 population census, so as to coincide as closely as possible to the year for which the agricultural variables are available.
