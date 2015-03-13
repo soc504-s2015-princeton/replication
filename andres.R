@@ -7,8 +7,7 @@ library(tidyr)
 library(gdata)
 
 ##load main 1990 censo database from inegi to the town level
-censo90 <- read.table("data/censo_1990_37_var.txt", 
-                      header = TRUE, sep = "\t", encoding = "latin1")
+censo90 <- read.table("data/censo_1990_37_var.txt", header = TRUE, sep = "\t", encoding = "latin1")
 
 ##create table with variables of interest and population
 censo.1 <- tbl_df(censo90) %>%
@@ -57,51 +56,6 @@ mun.total <- mun.total %>%
          prop.no.lit = no.literacy/total.pop) %>%
   select(-twn, -no.literacy, -indi, -pop.less.2500)
 
-## elevation, no information on the 1990 census, used the 1995 Conteo. 
-
-conteo.95 <- read.table("data/conteo_1995_37_var.txt", sep = "\t")
-conteo.95 <- tbl_df(conteo.95)
-
-##select variables create muncodes, filter NAs
-elev <- conteo.95 %>%
-  select(state = V1, mun = V3, elev = V9) %>%
-  mutate(muncode = (state*1000) + mun) 
-
-elev[elev == ""] <- NA
-elev <- elev %>%
-  filter(!is.na(elev))
-
-#separating out oaxaca 
-elev.oax <- filter(elev, muncode %in% 20001:20570) 
-elev <- filter(elev, !(muncode %in% 20001:20570))
-
-#table with standard deviation for elevation among towns in a municipality
-elev <- elev %>%
-  group_by(muncode) %>%
-  summarise(sd.elev = sd(elev))
-
-##POPULATION DENSITY
-##pull data with municipal area in meters to calculate population density, there is no GIS map, 
-## for 1990, oldest one is 1995.#THERE COULD BE A PROBLEM HERE DUE TO ADDITIONAL/CHANGED MUNICIPALITY CODES FOR OAXACA
-
-map1995 <- read.dbf("data/inegi_map1995.DBF")
-map1995 <- tbl_df(map1995)
-
-## area of each municipality in squared kilometers
-area <- map1995 %>%
-  mutate(muncode = paste(CVE_ENT, CVE_MUN, sep =""), sqkm = (AREA/1000^2)) %>%
-  mutate(muncode = as.numeric(as.character(muncode))) %>%
-  select(muncode, sqkm)
-
-#separating out oaxaca
-area.oax <- filter(area, muncode %in% 20001:20570)
-area <- filter(area, !(muncode %in% 20001:20570))
-
-## population density, total population over area. 
-pop.dens <- left_join(mun.total, area, by = "muncode") %>%
-  mutate(pop.dens = total.pop/sqkm)  %>%
-  select(muncode, pop.dens)
-
 #DOCTORS
 ##table with number of doctors by municipality 
 docs <- read.csv(file="data/doctors_censo1990.csv", header=TRUE, skip = 4, encoding = "latin1")
@@ -126,7 +80,6 @@ docs.per.10k <- left_join(mun.total, docs, by = "muncode") %>%
   mutate(docs.per.10k = (doctors/total.pop)*10000)  %>%
   select(muncode, docs.per.10k)
 
-
 #FEMALE HEADED HOUSEHOLDS
 fems <- read.csv(file="data/headhome_censo1990.csv", header=TRUE, skip = 4, encoding = "latin1")
 fems <- tbl_df(fems)
@@ -145,32 +98,6 @@ fems <- filter(fems, !(muncode %in% 20001:20570))
 fems <- fems %>%
   mutate(pct.fem.house = fem.house/total) %>%
   select(muncode, pct.fem.house)
-
-
-#HOMICIDES
-homicides <- read.csv(file="data/homicide_1990_2013_INEGI.csv", header=FALSE, skip = 6, encoding = "latin1")
-homicides <- tbl_df(homicides) %>%
-  select(-V3:-V23)
-
-## new coloumn names, default were unreadable
-colnames(homicides) <- c("muncode", "Nombre", "hom.1992", "hom.1991", "hom.1990")
-homicides[is.na(homicides)] <- 0
-
-##clean out NAs and others, sum 1990,1991, 1992
-homicides <- homicides %>%
-  filter(!grepl("996|997|998|991|993|992", muncode), muncode > 1000) %>%
-  mutate(hom.total = hom.1992+ hom.1991 + hom.1990) %>%
-  select(muncode, hom.total)
-
-#filtering out oaxaca
-homicides.oax <- filter(homicides, muncode %in% 20001:20570)
-homicides <- filter(homicides, !(muncode %in% 20001:20570))
-
-##calculate homicide rate with three tiems the total population at risk, 
-##for three yeras of homicides
-homicide.rate <- right_join(homicides, mun.total, by = "muncode") %>%
-  mutate(hom.rate = hom.total/(total.pop*3)*100000)  %>%
-  select(muncode, hom.rate)
 
 #YOUNG MALES
 men <- read.csv(file="data/censo_1990_age.csv", header=FALSE, skip = 7, encoding = "latin1")
@@ -205,6 +132,76 @@ prct.young <- right_join(young, mun.total, by = "muncode") %>%
   mutate(prct.young = young.total/total.pop)  %>%
   select(muncode, prct.young)
 
+##POPULATION DENSITY
+##pull data with municipal area in meters to calculate population density, there is no GIS map, 
+## for 1990, oldest one is 1995.#THERE COULD BE A PROBLEM HERE DUE TO ADDITIONAL/CHANGED MUNICIPALITY CODES FOR OAXACA
+
+map1995 <- read.dbf("data/inegi_map1995.DBF")
+map1995 <- tbl_df(map1995)
+
+## area of each municipality in squared kilometers
+area <- map1995 %>%
+  mutate(muncode = paste(CVE_ENT, CVE_MUN, sep =""), sqkm = (AREA/1000^2)) %>%
+  mutate(muncode = as.numeric(as.character(muncode))) %>%
+  select(muncode, sqkm)
+
+#separating out oaxaca
+area.oax <- filter(area, muncode %in% 20001:20570)
+area <- filter(area, !(muncode %in% 20001:20570))
+
+## population density, total population over area. 
+pop.dens <- left_join(mun.total, area, by = "muncode") %>%
+  mutate(pop.dens = total.pop/sqkm)  %>%
+  select(muncode, pop.dens)
+
+##ELEVATION
+#no information on the 1990 census, used the 1995 Conteo. 
+
+conteo.95 <- read.table("data/conteo_1995_37_var.txt", sep = "\t")
+conteo.95 <- tbl_df(conteo.95)
+
+#select variables create muncodes, filter NAs
+elev <- conteo.95 %>%
+  select(state = V1, mun = V3, elev = V9) %>%
+  mutate(muncode = (state*1000) + mun) 
+
+elev[elev == ""] <- NA
+elev <- elev %>%
+  filter(!is.na(elev))
+
+#separating out oaxaca 
+elev.oax <- filter(elev, muncode %in% 20001:20570) 
+elev <- filter(elev, !(muncode %in% 20001:20570))
+
+#table with standard deviation for elevation among towns in a municipality
+elev <- elev %>%
+  group_by(muncode) %>%
+  summarise(sd.elev = sd(elev))
+
+#HOMICIDES
+homicides <- read.csv(file="data/homicide_1990_2013_INEGI.csv", header=FALSE, skip = 6, encoding = "latin1")
+homicides <- tbl_df(homicides) %>%
+  select(-V3:-V23)
+
+## new coloumn names, default were unreadable
+colnames(homicides) <- c("muncode", "Nombre", "hom.1992", "hom.1991", "hom.1990")
+homicides[is.na(homicides)] <- 0
+
+##clean out NAs and others, sum 1990,1991, 1992
+homicides <- homicides %>%
+  filter(!grepl("996|997|998|991|993|992", muncode), muncode > 1000) %>%
+  mutate(hom.total = hom.1992+ hom.1991 + hom.1990) %>%
+  select(muncode, hom.total)
+
+#filtering out oaxaca
+homicides.oax <- filter(homicides, muncode %in% 20001:20570)
+homicides <- filter(homicides, !(muncode %in% 20001:20570))
+
+##calculate homicide rate with three tiems the total population at risk, 
+##for three yeras of homicides
+homicide.rate <- right_join(homicides, mun.total, by = "muncode") %>%
+  mutate(hom.rate = hom.total/(total.pop*3)*100000)  %>%
+  select(muncode, hom.rate)
 
 ##join all new variables to creat the main data frame with control and dependent variables
 
@@ -399,6 +396,8 @@ final.df <- left_join(agr_var, main, by = "name")
 #Thiel's index
 ##the percentage of units dedicated to harvesting coffee
 #the log of persons per hectare of agricultural land
+
+#deal with addition of 3 names variables to main dataset
 
 #OLD CODE TO CHECK OAXACA SAMPLE
 ##join distrito table with oaxaca population table by distrito and generate new muncodes with distrito number.

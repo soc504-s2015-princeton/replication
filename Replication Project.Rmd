@@ -42,6 +42,8 @@ library(maps)
 library(rgdal)
 library(maptools)
 library(gpclib) 
+library(RColorBrewer)
+library(scales)
 gpclibPermit()
 
 ## MUNICIPALITIES, INDIGENOUS-LANGUAGE-SPEAKERS, ILLITERACY
@@ -221,7 +223,7 @@ homicides <- read.csv(file="data/homicide_1990_2013_INEGI.csv", header=FALSE, sk
 homicides <- tbl_df(homicides) %>%
   select(-V3:-V23)
 
-#new coloumn names, default were unreadable
+#new column names, default were unreadable
 colnames(homicides) <- c("muncode", "Nombre", "hom.1992", "hom.1991", "hom.1990")
 homicides[is.na(homicides)] <- 0
 
@@ -240,7 +242,7 @@ homicide.rate <- right_join(homicides, mun.total, by = "muncode") %>%
   mutate(hom.rate = hom.total/(total.pop*3)*100000) 
 
 #store versions for use in dataframe for analysis and map 
-homs.for.map <- select(homicide.rate, mun_name, hom.rate, muncode)
+homs.for.map <- select(homicide.rate, hom.rate, muncode)
 
 homicide.rate <- select(homicide.rate, muncode, hom.rate)
 
@@ -313,6 +315,7 @@ elev.map.oax <- left_join(distritos, elev.oax, by = "muncode") %>%
   group_by(distrito) %>%
   mutate(sd.elev = sd(elev)) %>%
   select(muncode, sd.elev)
+elev.map.oax <- elev.map.oax[!duplicated(elev.map.oax), ]
 
 elev.oax <- left_join(distritos, elev.oax, by = "muncode") %>%
   group_by(distrito) %>%
@@ -427,55 +430,83 @@ final.df <- left_join(agr_var, main, by = "name")
 
 ```
 
-Villarreal produced two maps with overlaid data as part of the paper; one showed homicide rates in Mexican municipalities, and the other showed the standard deviation of elevation in Mexican municipalities.
-![Homicide Rates in Mexican Municipalities](figures/img.png)
-![Std. Deviation of Elevation in Mexican Municipalities ](figures/img.png)
+Villarreal produced two maps with overlaid data as part of the paper; one showed homicide rates in Mexican municipalities, and the other showed the standard deviation of elevation in Mexican municipalities:
+
+![Homicide Rates in Mexican Municipalities](data/homs.png)
+
+![Std. Deviation of Elevation in Mexican Municipalities ](data/elev.png)
 
 ```{r}
-#THIS IS NOT WORKING YET
-
 #create dataframes with homicide rate and standard deviation of elevation for ALL mexican municipalities 
 oaxaca.hom <- oaxaca.dist  %>%  
     group_by(distrito)  %>% 
     mutate(hom.total = sum(hom.total), hom.rate = hom.total/(total.pop*3)*100000) %>%
-    filter(mun_name, hom.rate, muncode)
+    select(hom.rate, muncode, -distrito)
 
-homs.mun <- rbind(homs.for.map, oaxaca.hom, by = "mun_name")
-colnames(homs.mun) <- c("id", "hom.rate", "muncode")
+com.hom <- intersect(colnames(homs.for.map), colnames(oaxaca.hom))
+homs.map <- rbind(subset(homs.for.map, select = com.hom), subset(oaxaca.homl, select = com.hom))
 
-elev.map <- rbind(elev, elev.map.oax, by = "muncode") %>%
-  left_join(elev.map, homs.mun, by = "muncode") %>%
-  select(-hom.rate, -muncode)
+com.elev <- intersect(colnames(elev), colnames(elev.map.oax))
+elev.map <- rbind(subset(elev, select = com.elev), subset(elev.map.oax, select = com.elev))
+elev.map$sd.elev[is.na(elev.map$sd.elev)] <- 0
 
-#create maps and overlay homicide data and elevation data
-load("MEX_adm2.RData")
-mex.mun <- get("gadm")
-mex.mun.df <- fortify(mex.mun, region = "NAME_2")
-mex.map.homs <- left_join(mex.mun.df, homs.mun, by = "id")
+map.data <- left_join(elev.map, homs.map, by = "muncode")
 
-p <- ggplot(mex.map.homs, aes(x = long, y = lat, group = group))
-p + geom_polygon(aes(fill = cut(hom.rate, 4))) + 
-  labs(x=" ", y=" ") + 
-  theme_bw() + 
-  scale_fill_brewer("Ave. Homicide Rate 1990-2 (Per 100,000)", palette  = 'PuRd') + 
-  coord_map() + 
-  theme(panel.grid.minor=element_blank(), panel.grid.major=element_blank()) + 
-  theme(axis.ticks = element_blank(), axis.text.x = element_blank(), axis.text.y = element_blank()) + 
-  theme(panel.border = element_blank())
-print(p)
+##create maps. 1995 data is sufficient
 
-mex.map.elev <- left_join(mex.mun.df, elev.map, by = "id")
+map.dbf <-read.dbf("data/mgm1995/Municipios_1995.DBF")
+map.dbf <- map.dbf %>%
+   mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
+          CVE_ENT = as.numeric(as.character(CVE_ENT)),
+          muncode = (CVE_ENT*1000) + CVE_MUN)
+            
+map.merged <- left_join(map.dbf, map.data, by = "muncode" )
+map.merged <- map.merged[order(map.merged$OID), ]
 
-l <- ggplot(mex.map.elev, aes(x = long, y = lat, group = group))
-l + geom_polygon(aes(fill = cut(sd.elev, 4))) + 
-  labs(x=" ", y=" ") + 
-  theme_bw() + 
-  scale_fill_brewer("Std. Deviation in Elevation (m)", palette  = 'PuRd') + 
-  coord_map() + 
-  theme(panel.grid.minor=element_blank(), panel.grid.major=element_blank()) + 
-  theme(axis.ticks = element_blank(), axis.text.x = element_blank(), axis.text.y = element_blank()) + 
-  theme(panel.border = element_blank())
-print(l)
+write.dbf(map.dbf, "data/maps/Old-Municipios_2010_5.dbf")
+write.dbf(map.merged, "data/maps/Municipios_2010_5.dbf")
 
+#intervals for color-coding and legend
+classIntervals(map.data$sd.elev, n = 4)
+classIntervals(map.data$hom.rate, n = 4)
+breaks_hom <- c(0, 15, 45, 75)
+labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
+breaks_elev <- c(0, 100, 200, 390)
+labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
+
+#creating maps
+map.shp <-  readShapePoly("data/mgm1995/Municipios_1995.shp")
+
+p <- ggplot(map.shp@data, aes(sd.elev, hom.rate))
+
+map_geom <- fortify(map.shp, region = "muncode")
+
+map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
+
+map_geom$hom_breaks <- cut(map_geom$hom.rate, breaks = breaks_hom, labels = labels_hom)
+
+map_geom$elev_breaks <- cut(map_geom$sd.elev, breaks = breaks_elev, labels = labels_elev)
+
+#adding look/feel
+Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+ labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities")
+
+Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+  labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
+
+Map1 + scale_fill_brewer(palette = "PuRD") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+
+Map2 + scale_fill_brewer(palette = "PuRD") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+
+#aesthetics code from first try
+#p <- ggplot(mex.map.homs, aes(x = long, y = lat, group = group))
+#p + geom_polygon(aes(fill = cut(hom.rate, 4))) +   
+#  labs(x=" ", y=" ") + 
+#  theme_bw() + 
+#  scale_fill_brewer("Ave. Homicide Rate 1990-2 (Per 100,000)", palette  = 'PuRd') + 
+#  coord_map() + 
+#  theme(panel.grid.minor=element_blank(), panel.grid.major=element_blank()) + 
+#  theme(axis.ticks = element_blank(), axis.text.x = element_blank(), axis.text.y = element_blank()) + 
+#  theme(panel.border = element_blank())
 ```
 
