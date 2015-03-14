@@ -333,14 +333,11 @@ oaxaca.mun <- oaxaca %>%
   left_join(distritos, oaxaca, by = "muncode") %>%
   select(muncode, pop.less.2500, total.pop, distrito) 
 
-##JOIN OAXACA AND MAIN DATAFRAMES, CONFIRM TOTAL SAMPLE SIZE OF 697 MUNICIPALITIES
-sample <- rbind(main, oax.main)
-
 ##AGRICULTURAL VARIABLES
 #load all the files
 prod_units <- read.csv(file="data/censo_agricola_1991_produnits.csv", header=FALSE, skip = 8, stringsAsFactors = FALSE, encoding = "UTF-8")
 prod_units <- tbl_df(prod_units)
-land <- read.csv(file="data/censo_agricola_1991_land_area.csv", header=FALSE, skip = 8, stringsAsFactors = FALSE, encoding = "UTF-8")
+land <- read.csv(file="data/censo_agricola_1991_land_area.csv", header=FALSE, skip = 9, stringsAsFactors = FALSE, encoding = "UTF-8")
 land <- tbl_df(land)
 subs <- read.csv("data/censo_agricola_1991_autoconsumo.csv", header = FALSE, skip = 11, stringsAsFactors = FALSE, encoding = "UTF-8")
 subs <- tbl_df(subs)
@@ -383,15 +380,26 @@ subs <- naming(subs)
 cattle <- naming(cattle)
 corn <- naming(corn)
 
-#get total producton units
+#get total producton units, seprating out oaxaca
 prod_units[is.na(prod_units)] <- 0
-prod_units1 <- prod_units %>%
+prod.units.main1 <- prod_units %>%
+  filter(state != "OAXACA") %>%
   select(name, total_prod_units = V3) %>%
   mutate(total_prod_units = as.numeric((total_prod_units)))
 
-#calculate proportions for land surface area according to property type
+prod.units.oax <- prod_units %>%
+  filter(state == "OAXACA") %>%
+  select(name, total_prod_units = V3) %>%
+  mutate(total_prod_units = as.numeric((total_prod_units)))
+
+#calculate percentages for land surface area according to property type
 land[is.na(land)] <- 0
-land1 <- land %>%
+
+#separating out oaxaca
+land.main <- filter(land, state != "OAXACA")
+land.oax <- filter(land, state == "OAXACA")
+
+land.main1 <- land.main %>%
   select(name, total_area = V3, ejidal = V4, 
          comunal = V5,  private = V6) %>%
   mutate(total_area = as.numeric((total_area)), 
@@ -404,7 +412,12 @@ land1 <- land %>%
 
 #calculate proportion of units dedicate to subsistance farming
 subs[is.na(subs)] <- 0
-subs1 <- subs %>%
+
+#separating out oaxaca
+subs.main <- filter(subs, state != "OAXACA")
+subs.oax <- filter(subs, state == "OAXACA")
+
+subs.main1 <- subs.main %>%
   select(name, total_units = V5, subs_units = V6) %>%
   mutate(total_units = as.numeric((total_units)), 
          subs_units = as.numeric(subs_units), 
@@ -412,7 +425,12 @@ subs1 <- subs %>%
 
 #proportion of units with cattle needs to be calculated from total production units.
 cattle[is.na(cattle)] <- 0
-cattle1 <- cattle %>%
+
+#separating out oaxaca
+cattle.main <- filter(cattle, state != "OAXACA")
+cattle.oax <- filter(cattle, state == "OAXACA")
+
+cattle.main1 <- cattle.main %>%
   select(name, total.cattle.units = V5) #NEEDS TO BE PERCENT CATTLE PRODUCTION
 
 #maize yields in ton per hectare
@@ -425,11 +443,16 @@ agr_var <- left_join(agr_var, subs1, by = "name" )
 agr_var <- left_join(agr_var, corn1, by = "name" )
 agr_var <- left_join(agr_var, cattle1, by = "name" )
 
+
+#calculate 
 #join main dataframe with agricultural variables
 final.df <- left_join(agr_var, main, by = "name")
 
 #ADD OAXACA
 #CHECK VARIABLE CALCULATION AND %s VS. PROPORTIONS IN VARIABLES/NAMES
+
+##JOIN OAXACA AND MAIN DATAFRAMES, CONFIRM TOTAL SAMPLE SIZE OF 697 MUNICIPALITIES
+sample <- rbind(main, oax.main) #CANT DO THIS YET
 
 ```
 
