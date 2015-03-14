@@ -7,7 +7,7 @@ output: html_document
 
 We chose to replicate Andrés Villarreal's 2004 AJS paper, "The Social Ecology of Rural Violence: Land Scarcity, the Organization of Agricultural Production, and the Presence of the State." Applying an ecological theory of crime to the study of rural violence in Mexico, Villarreal attempts explain the fact that rural municipalities have high variation in homicide rates by investigating the effects of land distribution, collective ownership, and the organization of agricultural production on homicide rates. He tests five specific hypotheses: (1) When agricultural land is scarce relative to the number of individuals, there will be more conflict and therefore more homicides; (2) An unequal distribution of land will lead to more violent conflict; (3) When property rights are not well enforced or are contingent, there will be more conflict over lands. For this reason, ejido and communal units will experience more violence; (4) agricultural production systems that involve more commodified relations of production and exchange will be associated with a breakdown of community social cohesion and therefore with more violence, and the introduction of cash crops will lead to greater conflict over resources and control over trade, and consequently to more violence; and (5) remote mountainous areas will have higher rates of violence due to the absence of state institutions.
 
-The 5 hypotheses were tested using negative binomial regressions. Higher land scarcity and agricultural units organized by group were not found to be associated with higher homicide rates, but unequal distribution of land and high percentages of communal and ejido land were associated with higher homicide rates, as were higher rates of coffee and cattle production. Finally, remote mountainous municipalities that were isolated from state institutions had higher homicide rates.
+Higher land scarcity and agricultural units organized by group were not found to be associated with higher homicide rates, but unequal distribution of land and high percentages of communal and ejido land were associated with higher homicide rates, as were higher rates of coffee and cattle production. Finally, remote mountainous municipalities that were isolated from state institutions had higher homicide rates.
 
 **Preparing the Dataset for Analysis:**
 
@@ -44,6 +44,7 @@ library(maptools)
 library(gpclib) 
 library(RColorBrewer)
 library(scales)
+library(MASS)
 gpclibPermit()
 
 ## MUNICIPALITIES, INDIGENOUS-LANGUAGE-SPEAKERS, ILLITERACY
@@ -399,7 +400,7 @@ land1 <- land %>%
          ejidal = as.numeric(ejidal), 
          comunal = as.numeric(comunal), 
          private = as.numeric(private),
-         prop.ej.comm = (ejidal+comunal)/total_area *100, 
+         prop.ej.comm = (ejidal+comunal)/total_area *100, #NEEDS TO BE SEPARATED
          prop.individual = private/total_area*100)
 
 #calculate proportion of units dedicate to subsistance farming
@@ -419,6 +420,7 @@ cattle1 <- cattle %>%
 corn$V6[is.na(corn$V6)] <- 0
 corn1 <- corn %>%
   select(name, corn_tons = V5)
+#NEEDS TO BE LOG YIELDS IN TONS PER HECTARE
 
 agr_var <- left_join(prod_units1, land1, by = "name")
 agr_var <- left_join(agr_var, subs1, by = "name" )
@@ -510,3 +512,35 @@ Map2 + scale_fill_brewer(palette = "PuRD") + guides(fill = guide_legend(reverse 
 #  theme(panel.border = element_blank())
 ```
 
+"The distribution of homicide rates in Mexican municipalities is heavily skewed toward lower values. It has the shape of a rapidly decaying function where most municipalities have low homicide rates. Homicides are, after all, relatively rare events. Under these conditions, ordinary least squares regressions lead to unreliable estimations. The number of homicides in each municipality more closely resembles a positive count variable of the sort commonly encountered in epidemiological studies. I therefore use negative binomial regressions to test the hypotheses described above. Negative binomial regressions are similar to the more commonly known Poisson regressions in that
+the underlying distribution of the dependent variable is assumed to be close to a Poisson distribution, and maximum likelihood estimation is used. However, whereas Poisson regressions assume that the variance of the dependent variable is equal to its mean, negative binomial regressions allow for greater dispersion."
+
+3 Models for Hypotheses 1 and 2:
+
+![Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)](data/Table1.png)
+
+```{r}
+glm.nb(hom.rate ~ corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+
+glm.nb(hom.rate ~ corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and Thiel's land inequality
+
+glm.nb(hom.rate ~ #PERSONS PER HECTARE + corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
+```
+
+3 Models for Hypotheses 3 and 4:
+
+![Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization, and Production of Cash Crops (Hypotheses 1 and 2)](data/Table2a.png)
+
+![Table 2: Continued)](data/Table2b.png)
+
+```{r}
+
+#IN PROGRESS
+
+glm.nb(hom.rate ~ prop.ej.comm + corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+
+glm.nb(hom.rate ~ corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample)
+
+glm.nb(hom.rate ~ corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample)
+
+```
