@@ -7,8 +7,6 @@ output: html_document
 
 We chose to replicate Andrés Villarreal's 2004 AJS paper, "The Social Ecology of Rural Violence: Land Scarcity, the Organization of Agricultural Production, and the Presence of the State." Applying an ecological theory of crime to the study of rural violence in Mexico, Villarreal attempts explain the fact that rural municipalities have high variation in homicide rates by investigating the effects of land distribution, collective ownership, and the organization of agricultural production on homicide rates. He tests five specific hypotheses: (1) When agricultural land is scarce relative to the number of individuals, there will be more conflict and therefore more homicides; (2) An unequal distribution of land will lead to more violent conflict; (3) When property rights are not well enforced or are contingent, there will be more conflict over lands. For this reason, ejido and communal units will experience more violence; (4) agricultural production systems that involve more commodified relations of production and exchange will be associated with a breakdown of community social cohesion and therefore with more violence, and the introduction of cash crops will lead to greater conflict over resources and control over trade, and consequently to more violence; and (5) remote mountainous areas will have higher rates of violence due to the absence of state institutions.
 
-Higher land scarcity and agricultural units organized by group were not found to be associated with higher homicide rates, but unequal distribution of land and high percentages of communal and ejido land were associated with higher homicide rates, as were higher rates of coffee and cattle production. Finally, remote mountainous municipalities that were isolated from state institutions had higher homicide rates.
-
 **Preparing the Dataset for Analysis:**
 
 "The hypotheses [...] are tested using a sample of rural municipalities [counties] in Mexico. [...] The sample of rural municipalities is constructed by selecting all municipalities in which more than 75% of the population lives in towns of less than 2,500 residents. [...] Municipalities belonging to the state of Oaxaca were grouped into 30 districts commonly used for statistical purposes. [...] A total of 697 municipalities (37% of all municipalities in the country) satisfy this criterion and are therefore included in the sample (minus some eliminated due to missing values). [...] The number of homicides are obtained from vital statistics compiled by the Mexican government. [...] In order to smooth out yearly fluctuations, the total number of homicides over a three-year period (1990– 92) is used, and the population at risk is assumed to be three times the municipal population." [...] The variables for land scarcity, collective ownership, and the organization of agricultural production are all drawn from the 1991 Agricultural and Livestock Census [...] 
@@ -400,7 +398,8 @@ land1 <- land %>%
          ejidal = as.numeric(ejidal), 
          comunal = as.numeric(comunal), 
          private = as.numeric(private),
-         prop.ej.comm = (ejidal+comunal)/total_area *100, #NEEDS TO BE SEPARATED
+         prop.ej = ejidal/total_area *100, 
+         prop.com = comunal/total_area * 100, 
          prop.individual = private/total_area*100)
 
 #calculate proportion of units dedicate to subsistance farming
@@ -414,13 +413,12 @@ subs1 <- subs %>%
 #proportion of units with cattle needs to be calculated from total production units.
 cattle[is.na(cattle)] <- 0
 cattle1 <- cattle %>%
-  select(name, total_cattle_units = V5)
+  select(name, total.cattle.units = V5) #NEEDS TO BE PERCENT CATTLE PRODUCTION
 
 #maize yields in ton per hectare
 corn$V6[is.na(corn$V6)] <- 0
 corn1 <- corn %>%
-  select(name, corn_tons = V5)
-#NEEDS TO BE LOG YIELDS IN TONS PER HECTARE
+  select(name, corn.tons = V5) #NEEDS TO BE LOG YIELDS IN TONS PER HECTARE
 
 agr_var <- left_join(prod_units1, land1, by = "name")
 agr_var <- left_join(agr_var, subs1, by = "name" )
@@ -430,7 +428,12 @@ agr_var <- left_join(agr_var, cattle1, by = "name" )
 #join main dataframe with agricultural variables
 final.df <- left_join(agr_var, main, by = "name")
 
+#ADD OAXACA
+#CHECK VARIABLE CALCULATION AND %s VS. PROPORTIONS IN VARIABLES/NAMES
+
 ```
+
+**Visualizing Homicide Rates and Variation in Altitude in Mexican Municipalities**
 
 Villarreal produced two maps with overlaid data as part of the paper; one showed homicide rates in Mexican municipalities, and the other showed the standard deviation of elevation in Mexican municipalities:
 
@@ -512,6 +515,8 @@ Map2 + scale_fill_brewer(palette = "PuRD") + guides(fill = guide_legend(reverse 
 #  theme(panel.border = element_blank())
 ```
 
+**Results**
+
 "The distribution of homicide rates in Mexican municipalities is heavily skewed toward lower values. It has the shape of a rapidly decaying function where most municipalities have low homicide rates. Homicides are, after all, relatively rare events. Under these conditions, ordinary least squares regressions lead to unreliable estimations. The number of homicides in each municipality more closely resembles a positive count variable of the sort commonly encountered in epidemiological studies. I therefore use negative binomial regressions to test the hypotheses described above. Negative binomial regressions are similar to the more commonly known Poisson regressions in that
 the underlying distribution of the dependent variable is assumed to be close to a Poisson distribution, and maximum likelihood estimation is used. However, whereas Poisson regressions assume that the variance of the dependent variable is equal to its mean, negative binomial regressions allow for greater dispersion."
 
@@ -525,22 +530,41 @@ glm.nb(hom.rate ~ corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + 
 glm.nb(hom.rate ~ corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and Thiel's land inequality
 
 glm.nb(hom.rate ~ #PERSONS PER HECTARE + corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
+         
+#ADD STARGAZER
 ```
 
 3 Models for Hypotheses 3 and 4:
 
-![Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization, and Production of Cash Crops (Hypotheses 1 and 2)](data/Table2a.png)
+![Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization, and Production of Cash Crops (Hypotheses 3 and 4)](data/Table2a.png)
 
 ![Table 2: Continued)](data/Table2b.png)
 
 ```{r}
 
-#IN PROGRESS
+glm.nb(hom.rate ~ prop.ej + prop.com + corn.tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
 
-glm.nb(hom.rate ~ prop.ej.comm + corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+glm.nb(hom.rate ~ prop.individual + total.cattle.units + prop.ej + prop.com + corn.tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
 
-glm.nb(hom.rate ~ corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample)
+glm.nb(hom.rate ~ prop.subs + total.cattle.units + prop.ej + prop.com + corn.tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
 
-glm.nb(hom.rate ~ corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample)
+#ADD STARGAZER
 
 ```
+
+1 Model for Hypothesis 5: 
+
+![Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypotheses 5)](data/Table3a.png)
+
+![Table 3: Continued)](data/Table3b.png)
+
+```{r}
+
+glm.nb(hom.rate ~ sd.elev + prop.individual + total.cattle.units + prop.ej + prop.com + corn.tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+
+#ADD STARGAZER
+```
+
+**Conclusions**
+
+Higher land scarcity and agricultural units organized by group were not found to be associated with higher homicide rates, but unequal distribution of land and high percentages of communal and ejido land were associated with higher homicide rates, as were higher rates of coffee and cattle production. Finally, remote mountainous municipalities that were isolated from state institutions had higher homicide rates.
