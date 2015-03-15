@@ -357,7 +357,8 @@ land1 <- land %>%
          ejidal = as.numeric(ejidal), 
          comunal = as.numeric(comunal), 
          private = as.numeric(private),
-         prop.ej.comm = (ejidal+comunal)/total_area *100, 
+         prop.ejidal = (ejidal/total_area *100),
+         prop.comunal = (comunal/total_area *100),
          prop.individual = private/total_area*100)
 
 ##calculate proportion of units dedicate to subsistance farming

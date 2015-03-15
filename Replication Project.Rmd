@@ -35,15 +35,12 @@ library(zoo)
 library(foreign)
 library(tidyr)
 library(gdata)
-library(ggmap)
-library(maps)
 library(rgdal)
 library(maptools)
 library(gpclib) 
 library(RColorBrewer)
 library(scales)
 library(MASS)
-gpclibPermit()
 
 ## MUNICIPALITIES, INDIGENOUS-LANGUAGE-SPEAKERS, ILLITERACY
 #load main 1990 censo database from inegi to the town level
@@ -447,6 +444,9 @@ agr_var <- left_join(agr_var, cattle1, by = "name" )
 #calculate 
 #join main dataframe with agricultural variables
 final.df <- left_join(agr_var, main, by = "name")
+
+##calculate persons per hectare of agricultural land
+
 
 #ADD OAXACA
 #CHECK VARIABLE CALCULATION AND %s VS. PROPORTIONS IN VARIABLES/NAMES
