@@ -307,7 +307,8 @@ df.main <- df.main %>%
          pct.individual = (private/total_area) * 100,
          pct.subs = (subs_units/total_units) * 100, 
          log.corn.yield = log(corn.tons/corn.ha), 
-         pct.cattle = (total.cattle.units/total_prod_units) * 100) %>%
+         pct.cattle = (total.cattle.units/total_prod_units) * 100, 
+         log.pop.surface = log(total.pop/total_area)) %>%
   select(-twn, -no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -up19, -up24, -up29, -total, -total_prod_units, -total_units, -corn.tons, -corn.ha, -total.cattle.units, -subs_units)
 
 df.main$log.corn.yield <- gsub("NaN", "0", df.main$log.corn.yield)
@@ -386,7 +387,8 @@ oaxaca.dist <- oaxaca.dist  %>% #NOT WORKING YET, I THINK BECAUSE NAs
             fem.house = sum(fem.house), total.house = sum(total.house), pct.fem.house = (fem.house/total.house) * 100,
             young.total = sum(young.total), pct.young = (young.total/total.pop) * 100, 
             hom.total = sum(hom.total), hom.rate = hom.total/(total.pop*3)*100000,
-            ejidal = sum(ejidal), total_area = sum(total_area), pct.ej = (ejidal/total_area) * 100,
+            ejidal = sum(ejidal), total_area = sum(total_area), log.pop.surface = log(total.pop/total_area), 
+            pct.ej = (ejidal/total_area) * 100,
             comunal = sum(comunal), pct.com = (comunal/total_area) * 100,
             private = sum(private), pct.individual = (private/total_area) * 100,
             total.cattle.units = sum(total.cattle.units), total_prod_units = sum(total_prod_units), pct.cattle = (total.cattle.units/total_prod_units) * 100,
@@ -422,10 +424,10 @@ oaxaca.mun <- df.oax %>%
 
 ##ORDER AND JOIN OAXACA AND MAIN DATAFRAMES
 sample.main <- sample.main %>%
-  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev)
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface)
 
 sample.oax <- sample.oax %>%
-  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev)
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface)
 
 sample <- rbind(sample.main, sample.oax) 
 
@@ -460,17 +462,17 @@ map.data <- left_join(elev.map, homs.map, by = "muncode")
 library(ggplot2)
 library(classInt)
 
-map.dbf <-read.dbf("data/mgm1995/Municipios_1995.DBF")
-map.dbf <- map.dbf %>%
-   mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
-          CVE_ENT = as.numeric(as.character(CVE_ENT)),
-          muncode = (CVE_ENT*1000) + CVE_MUN)
+#map.dbf <-read.dbf("data/mgm1995/Municipios_1995.DBF")
+#map.dbf <- map.dbf %>%
+  # mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
+   #       CVE_ENT = as.numeric(as.character(CVE_ENT)),
+   #       muncode = (CVE_ENT*1000) + CVE_MUN)
             
-map.merged <- left_join(map.dbf, map.data, by = "muncode" )
-map.merged <- map.merged[order(map.merged$OID), ]
+#map.merged <- left_join(map.dbf, map.data, by = "muncode" )
+#map.merged <- map.merged[order(map.merged$OID), ]
 
-#write.dbf(map.dbf, "data/maps/Old-Municipios_2010_5.DBF") NOT WORKING
-#write.dbf(map.merged, "data/maps/Municipios_2010_5.DBF") NOT WORKING
+#write.dbf(map.dbf, "data/mgm1995/old-Municipios_1995.DBF") #NOT WORKING
+#write.dbf(map.merged, "data/mgm1995/Municipios_1995.DBF") #NOT WORKING
 
 #intervals for color-coding and legend
 classIntervals(map.data$sd.elev, n = 4)
@@ -528,6 +530,9 @@ the underlying distribution of the dependent variable is assumed to be close to 
 ```{r}
 library(MASS)
 
+sample.tidy <- sample %>%
+  gather(controls)
+
 One.a <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
 
 summary(One.a)
@@ -536,8 +541,8 @@ One.b <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi 
 
 summary(One.b)
 
-One.c <- glm.nb(hom.rate ~ #PERSONS PER HECTARE + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
-
+One.c <- glm.nb(hom.rate ~ log.pop.surface, data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
++ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,
 summary(One.c)
 #ADD STARGAZER
 ```
