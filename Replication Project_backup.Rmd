@@ -372,7 +372,7 @@ distritos <- distritos %>%
 #join district table with oaxaca population table by district and generate new muncodes with district number. filter out new municipalies(districts) with more than 75% of population living in towns of less than 2500.
 df.oax$pop.less.2500[is.na(df.oax$pop.less.2500)] <- 0
 
-oaxaca.dist <- full_join(distritos, df.oax, by = "muncode") %>%
+oaxaca.dist <- left_join(distritos, df.oax, by = "muncode") %>%
   filter(!is.na(name))
   
 #calculate the rest of the variables, create new municipality codes to correspond with districts
