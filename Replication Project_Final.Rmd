@@ -461,6 +461,7 @@ map.data <- left_join(elev.map, homs.map, by = "muncode")
 ##create maps, using 1995 data because difference between 1995 and 1990 data is negligible
 library(ggplot2)
 library(classInt)
+gpclibPermit()
 
 #map.dbf <-read.dbf("data/mgm1995/Municipios_1995.DBF")
 #map.dbf <- map.dbf %>%
@@ -471,15 +472,20 @@ library(classInt)
 #map.merged <- left_join(map.dbf, map.data, by = "muncode" )
 #map.merged <- map.merged[order(map.merged$OID), ]
 
+<<<<<<< HEAD
 #write.dbf(map.dbf, "data/mgm1995/old-Municipios_1995.DBF") #NOT WORKING
 #write.dbf(map.merged, "data/mgm1995/Municipios_1995.DBF") #NOT WORKING
+=======
+write.dbf(map.dbf, "data/mgm1995/Old_Municipios_1995.DBF") 
+write.dbf(map.merged, "data/mgm1995/Municipios_1995.DBF")
+>>>>>>> 385db2399baac075e53c1d742a8649806f8ad4a2
 
 #intervals for color-coding and legend
 classIntervals(map.data$sd.elev, n = 4)
 classIntervals(map.data$hom.rate, n = 4)
-breaks_hom <- c(0, 15, 45, 75)
+breaks_hom <- c(0, 15, 45, 75, 15432.1)
 labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
-breaks_elev <- c(0, 100, 200, 390)
+breaks_elev <- c(0, 100, 200, 390, 1040.154)
 labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
 
 #creating maps
@@ -491,9 +497,9 @@ map_geom <- fortify(map.shp, region = "muncode")
 
 map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
 
-map_geom$hom_breaks <- cut(map_geom$hom.rate, breaks = breaks_hom, labels = labels_hom)
+map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom)
 
-map_geom$elev_breaks <- cut(map_geom$sd.elev, breaks = breaks_elev, labels = labels_elev)
+map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev)
 
 #adding look/feel
 Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
@@ -502,9 +508,9 @@ Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom
 Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
   labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
 
-Map1 + scale_fill_brewer(palette = "PuRD") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
 
-Map2 + scale_fill_brewer(palette = "PuRD") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
 
 #aesthetics code from first try
 #p <- ggplot(mex.map.homs, aes(x = long, y = lat, group = group))
@@ -529,6 +535,7 @@ the underlying distribution of the dependent variable is assumed to be close to 
 
 ```{r}
 library(MASS)
+library(stargazer)
 
 sample.tidy <- sample %>%
   gather(controls)
