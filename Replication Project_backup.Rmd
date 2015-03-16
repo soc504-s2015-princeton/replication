@@ -373,7 +373,7 @@ distritos <- distritos %>%
 df.oax$pop.less.2500[is.na(df.oax$pop.less.2500)] <- 0
 
 oaxaca.dist <- left_join(distritos, df.oax, by = "muncode") 
-oaxaca.dist <-filter(oaxaca.dist, !(is.na(name))) #REMOVE THIS ONCE MATCHING IS FIXED
+oaxaca.dist <-filter(oaxaca.dist, !(is.na(name))) #REMOVE THIS ONCE MATCHING IS FIXED?
 
 #calculate the rest of the variables, create new municipality codes to correspond with districts
 oaxaca.dist <- oaxaca.dist  %>% #NOT WORKING YET, I THINK BECAUSE NAs
@@ -442,13 +442,13 @@ Villarreal produced two maps with overlaid data as part of the paper; one showed
 
 ```{r}
 #create dataframes with homicide rate and standard deviation of elevation for ALL mexican municipalities 
-oaxaca.hom <- oaxaca.dist  %>%  
+oaxaca.hom <- left_join(distritos, df.oax, by = "muncode")  %>%  
     group_by(distrito)  %>% 
     mutate(hom.total = sum(hom.total), hom.rate = hom.total/(total.pop*3)*100000) %>%
     select(hom.rate, muncode, -distrito)
 
 com.hom <- intersect(colnames(homs.for.map), colnames(oaxaca.hom))
-homs.map <- rbind(subset(homs.for.map, select = com.hom), subset(oaxaca.homl, select = com.hom))
+homs.map <- rbind(subset(homs.for.map, select = com.hom), subset(oaxaca.hom, select = com.hom))
 
 com.elev <- intersect(colnames(elev), colnames(elev.map.oax))
 elev.map <- rbind(subset(elev, select = com.elev), subset(elev.map.oax, select = com.elev))
@@ -456,7 +456,7 @@ elev.map$sd.elev[is.na(elev.map$sd.elev)] <- 0
 
 map.data <- left_join(elev.map, homs.map, by = "muncode")
 
-##create maps. 1995 data is sufficient
+##create maps, using 1995 data because difference between 1995 and 1990 data is negligible
 library(ggplot2)
 
 
@@ -469,7 +469,7 @@ map.dbf <- map.dbf %>%
 map.merged <- left_join(map.dbf, map.data, by = "muncode" )
 map.merged <- map.merged[order(map.merged$OID), ]
 
-write.dbf(map.dbf, "data/maps/Old-Municipios_2010_5.dbf")
+write.dbf(map.dbf, "data/maps/Old-Municipios_2010_5.dbf") #STOPPED HERE
 write.dbf(map.merged, "data/maps/Municipios_2010_5.dbf")
 
 #intervals for color-coding and legend
@@ -528,11 +528,11 @@ the underlying distribution of the dependent variable is assumed to be close to 
 ```{r}
 library(MASS)
 
-glm.nb(hom.rate ~ corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
 
-glm.nb(hom.rate ~ corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and Thiel's land inequality
+glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and Thiel's land inequality
 
-glm.nb(hom.rate ~ #PERSONS PER HECTARE + corn_tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
+glm.nb(hom.rate ~ #PERSONS PER HECTARE + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
          
 #ADD STARGAZER
 ```
@@ -545,11 +545,11 @@ glm.nb(hom.rate ~ #PERSONS PER HECTARE + corn_tons + pop.dens + prct.young + pro
 
 ```{r}
 
-glm.nb(hom.rate ~ prop.ej + prop.com + corn.tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+glm.nb(hom.rate ~ pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
 
-glm.nb(hom.rate ~ prop.individual + total.cattle.units + prop.ej + prop.com + corn.tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+glm.nb(hom.rate ~ pct.individual + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
 
-glm.nb(hom.rate ~ prop.subs + total.cattle.units + prop.ej + prop.com + corn.tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+glm.nb(hom.rate ~ pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
 
 #ADD STARGAZER
 
@@ -563,7 +563,7 @@ glm.nb(hom.rate ~ prop.subs + total.cattle.units + prop.ej + prop.com + corn.ton
 
 ```{r}
 
-glm.nb(hom.rate ~ sd.elev + prop.individual + total.cattle.units + prop.ej + prop.com + corn.tons + pop.dens + prct.young + prop.indi + prop.no.lit + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+glm.nb(hom.rate ~ sd.elev + pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
 
 #ADD STARGAZER
 ```
@@ -571,11 +571,4 @@ glm.nb(hom.rate ~ sd.elev + prop.individual + total.cattle.units + prop.ej + pro
 **Conclusions**
 
 Higher land scarcity and agricultural units organized by group were not found to be associated with higher homicide rates, but unequal distribution of land and high percentages of communal and ejido land were associated with higher homicide rates, as were higher rates of coffee and cattle production. Finally, remote mountainous municipalities that were isolated from state institutions had higher homicide rates.
-
-```{r}
-
-
-
-
-```
 
