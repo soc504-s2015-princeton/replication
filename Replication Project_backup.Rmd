@@ -35,14 +35,11 @@ library(zoo)
 library(foreign)
 library(tidyr)
 library(gdata)
-library(ggmap)
-library(maps)
-library(rgdal)
 library(maptools)
 library(gpclib) 
 library(RColorBrewer)
 library(scales)
-gpclibPermit()
+
 
 
 ## MUNICIPALITIES, INDIGENOUS-LANGUAGE-SPEAKERS, ILLITERACY
