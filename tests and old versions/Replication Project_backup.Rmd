@@ -470,7 +470,7 @@ map.data <- left_join(elev.map, homs.map, by = "muncode")
 
 ##create maps, using 1995 data because difference between 1995 and 1990 data is negligible
 library(ggplot2)
-
+library(classInt)
 
 map.dbf <-read.dbf("data/mgm1995/Municipios_1995.DBF")
 map.dbf <- map.dbf %>%
@@ -481,8 +481,8 @@ map.dbf <- map.dbf %>%
 map.merged <- left_join(map.dbf, map.data, by = "muncode" )
 map.merged <- map.merged[order(map.merged$OID), ]
 
-write.dbf(map.dbf, "data/maps/Old-Municipios_2010_5.dbf") #STOPPED HERE
-write.dbf(map.merged, "data/maps/Municipios_2010_5.dbf")
+#write.dbf(map.dbf, "data/maps/Old-Municipios_2010_5.DBF") NOT WORKING
+#write.dbf(map.merged, "data/maps/Municipios_2010_5.DBF") NOT WORKING
 
 #intervals for color-coding and legend
 classIntervals(map.data$sd.elev, n = 4)
