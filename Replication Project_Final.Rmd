@@ -459,9 +459,9 @@ elev.map$sd.elev[is.na(elev.map$sd.elev)] <- 0
 map.data <- left_join(elev.map, homs.map, by = "muncode")
 
 ##create maps, using 1995 data because difference between 1995 and 1990 data is negligible
-
+library(ggplot2)
 library(classInt)
-
+gpclibPermit()
 
 #map.dbf <-read.dbf("data/mgm1995/Municipios_1995.DBF")
 #map.dbf <- map.dbf %>%
@@ -472,10 +472,13 @@ library(classInt)
 #map.merged <- left_join(map.dbf, map.data, by = "muncode" )
 #map.merged <- map.merged[order(map.merged$OID), ]
 
-
-#write.dbf(map.dbf, "data/mgm1995/Old_Municipios_1995.DBF") 
-#write.dbf(map.merged, "data/mgm1995/Municipios_1995.DBF")
-
+<<<<<<< HEAD
+#write.dbf(map.dbf, "data/mgm1995/old-Municipios_1995.DBF") #NOT WORKING
+#write.dbf(map.merged, "data/mgm1995/Municipios_1995.DBF") #NOT WORKING
+=======
+write.dbf(map.dbf, "data/mgm1995/Old_Municipios_1995.DBF") 
+write.dbf(map.merged, "data/mgm1995/Municipios_1995.DBF")
+>>>>>>> 385db2399baac075e53c1d742a8649806f8ad4a2
 
 #intervals for color-coding and legend
 classIntervals(map.data$sd.elev, n = 4)
@@ -485,7 +488,6 @@ labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
 breaks_elev <- c(0, 100, 200, 390, 1040.154)
 labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
 
-gpclibPermit()
 #creating maps
 map.shp <-  readShapePoly("data/mgm1995/Municipios_1995.shp")
 
@@ -495,19 +497,18 @@ map_geom <- fortify(map.shp, region = "muncode")
 
 map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
 
-map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
+map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom)
 
-map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
+map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev)
 
-##maps for homicides and elevation
-
+#adding look/feel
 Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
- labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 1990 - 1992")
-
-Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+ labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities")
 
 Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
   labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
+
+Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
 
 Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
 
@@ -533,24 +534,24 @@ the underlying distribution of the dependent variable is assumed to be close to 
 ![Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)](data/Table1.png)
 
 ```{r}
-# library(MASS)
-# library(stargazer)
-# 
-# sample.tidy <- sample %>%
-#   gather(controls)
-# 
-# One.a <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
-# 
-# summary(One.a)
-# 
-# One.b <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and Thiel's land inequality
-# 
-# summary(One.b)
-# 
-# One.c <- glm.nb(hom.rate ~ log.pop.surface, data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
-# + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,
-# summary(One.c)
-# #ADD STARGAZER
+library(MASS)
+library(stargazer)
+
+sample.tidy <- sample %>%
+  gather(controls)
+
+One.a <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+
+summary(One.a)
+
+One.b <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and Thiel's land inequality
+
+summary(One.b)
+
+One.c <- glm.nb(hom.rate ~ log.pop.surface, data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
++ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,
+summary(One.c)
+#ADD STARGAZER
 ```
 
 3 Models for Hypotheses 3 and 4:
@@ -561,18 +562,18 @@ the underlying distribution of the dependent variable is assumed to be close to 
 
 ```{r}
 
-# Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
-# 
-# summary(Two.a)
-# 
-# Two.b <- glm.nb(hom.rate ~ pct.individual + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
-# 
-# summary(Two.b)
-# 
-# Two.c <- glm.nb(hom.rate ~ pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
-# 
-# summary(Two.c)
-# #ADD STARGAZER
+Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+
+summary(Two.a)
+
+Two.b <- glm.nb(hom.rate ~ pct.individual + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+
+summary(Two.b)
+
+Two.c <- glm.nb(hom.rate ~ pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+
+summary(Two.c)
+#ADD STARGAZER
 
 ```
 
@@ -584,11 +585,11 @@ the underlying distribution of the dependent variable is assumed to be close to 
 
 ```{r}
 
-# Three <- glm.nb(hom.rate ~ sd.elev + pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
-# 
-# summary(Three)
-# 
-# #ADD STARGAZER
+Three <- glm.nb(hom.rate ~ sd.elev + pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+
+summary(Three)
+
+#ADD STARGAZER
 ```
 
 **Conclusions**
