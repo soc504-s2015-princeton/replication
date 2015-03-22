@@ -25,9 +25,9 @@ in previous work and is therefore included in the regressions below.[...] A dumm
 Finally, as described above, a measure of the local topography is used to test the effect of access to state institutions on the rate of homicidal violence [the standard deviation of elevation in a municipality]. However, remote rural areas are not only farther from the reach
 of state institutions, they are also farther from medical services. [...] I therefore introduce the number of medical doctors in the municipality per 10,000 residents according to the 1990 census as a predictor of homicide rates in all the regression models.""
 
-*Variables were added to the dataset for analysis in order of the file they came from - i.e. all variables from the standard census dataset first, then variables regarding doctors, female-headed households, and percent young males (which each require special sub-datasets from the census), then elevation data, then population density (which requires map data about the area of municipalities), then homicides. The dummy variable was added last. Data regarding the state of Oaxaca were separated out through this process, as this state counts municipalities differently - each town is counted as its own municipality, which would skew the data. As noted above, Oaxacan municipalities are typically grouped into 30 districts for analysis--we completed this operation after creating the main analytical dataframe, recalculated all variables for the Oaxacan districts, and merged the two dataframes by municipality code. Variables drawn from the Agricultural Census were added next, as they required matching by name instead of municipality code due to the format of the raw data. Again, data from Oaxaca were separated, recalculated and then recombined with the main dataframe.*
+*Data were added to the dataset for analysis in order of data source - i.e. all data from the standard census first, then population density (which requires map data about the area of municipalities), then homicides, then the dummy variable. Data drawn from the Agricultural Census were added next, as they required matching by name instead of municipality code due to the format of the raw data. Once these data were combined into the main analytical dataframe, all relevant variables were computed, and then elevation data was added. Data regarding the state of Oaxaca were separated out through this process, as this state counts municipalities differently - each town is counted as its own municipality, which would skew the data. As noted above, Oaxacan municipalities are typically grouped into 30 districts for analysis--we completed this operation after creating the main analytical dataframe, recalculated all variables for the Oaxacan districts, and merged the two dataframes by municipality code.*
 
-```{r}
+```{r results='hide', message=FALSE, warning=FALSE}
 library(ggplot2)
 library(dplyr)
 library(xlsx)
@@ -39,10 +39,10 @@ library(maptools)
 library(gpclib) 
 library(RColorBrewer)
 library(scales)
+```
 
-
-
-## MUNICIPALITIES, INDIGENOUS-LANGUAGE-SPEAKERS, ILLITERACY
+**Municipalities, Indigenous Language-Speakers, Illiteracy**
+```{r}
 #load main 1990 censo database from inegi to the town level
 censo90 <- read.table("data/censo_1990_37_var.txt", header = TRUE, sep = "\t", encoding = "latin1")
 
@@ -80,8 +80,10 @@ mun.total$mun_name <- gsub("`|\\'", "", iconv(mun.total$mun_name, to="ASCII//TRA
 mun.total$mun_name <- gsub("~","", mun.total$mun_name)
 mun.total$mun_name <- gsub("\"","", mun.total$mun_name)
 
+```
 
-##DOCTORS
+**Doctors**
+```{r}
 #create table with number of doctors by municipality 
 docs <- read.csv(file="data/doctors_censo1990.csv", header=TRUE, skip = 4, encoding = "latin1")
 docs <- tbl_df(docs)
@@ -93,8 +95,10 @@ docs <- docs %>%
   filter(!grepl("996|997", muncode), muncode > 1000)
 
 docs[is.na(docs)] <- 0
+```
 
-##FEMALE HEADED HOUSEHOLDS
+**Female-Headed Households**
+```{r}
 fems <- read.csv(file="data/headhome_censo1990.csv", header=TRUE, skip = 4, encoding = "latin1")
 fems <- tbl_df(fems)
 
@@ -104,9 +108,10 @@ fems <- fems %>%
   filter(!grepl("996|997", muncode), muncode > 1000)
 
 fems[is.na(fems)] <- 0
+```
 
-
-##YOUNG MALES
+**Young Males**
+```{r}
 men <- read.csv(file="data/censo_1990_age.csv", header=FALSE, skip = 7, encoding = "latin1")
 men <- tbl_df(men)
 
@@ -129,9 +134,10 @@ young <- young %>%
          up29 = as.numeric(as.character(up29))) %>%
   filter(!is.na(muncode)) %>%
   mutate(young.total = up19+up24+up29)
+```
 
-
-##POPULATION DENSITY
+**Population Density**
+```{r}
 #pull data with municipal area in meters to calculate population density, there is no GIS map, for 1990, oldest one is 1995.
 map1995 <- read.dbf("data/inegi_map1995.DBF")
 map1995 <- tbl_df(map1995)
@@ -141,9 +147,10 @@ area <- map1995 %>%
   mutate(muncode = paste(CVE_ENT, CVE_MUN, sep =""), sqkm = (AREA/1000^2)) %>%
   mutate(muncode = as.numeric(as.character(muncode))) %>%
   select(muncode, sqkm)
+```
 
-
-##HOMICIDES
+**Homicides**
+```{r}
 homicides <- read.csv(file="data/homicide_1990_2013_INEGI.csv", header=FALSE, skip = 6, encoding = "latin1")
 homicides <- tbl_df(homicides) %>%
   select(-V3:-V23)
@@ -157,9 +164,11 @@ homicides <- homicides %>%
   filter(!grepl("996|997|998|991|993|992", muncode), muncode > 1000) %>%
   mutate(hom.total = hom.1992+ hom.1991 + hom.1990) %>%
   select(muncode, hom.total)
+```
 
-
-##JOIN, DUMMY VARIABLE, AND FILTER TO MAIN SAMPLE
+**CREATING THE MAIN DATAFRAME OF DATA FROM STANDARD CENSUS, PLUS HOMICIDES**
+**Adding Dummy Variable for State of Mexico**
+```{r}
 #join all new variables to creat the main data frame with control and dependent variables
 main <- left_join(mun.total, area, by = "muncode")
 main <- left_join(main, docs, by = "muncode")
@@ -171,9 +180,10 @@ main <- left_join(main, homicides, by = "muncode")
 main <- main %>% 
   mutate(dummy.SOM = as.numeric(muncode %in% 15001:15125)) %>%
   mutate(name = paste(mun_name, state_name, sep = ", "))
+```
 
-
-##AGRICULTURAL VARIABLES
+**Agricultural Data**
+```{r}
 #load all the files
 prod_units <- read.csv(file="data/censo_agricola_1991_produnits.csv", header=FALSE, skip = 8, stringsAsFactors = FALSE, encoding = "UTF-8")
 prod_units <- tbl_df(prod_units)
@@ -227,6 +237,10 @@ prod.units1 <- prod_units %>%
   select(name, total_prod_units = V3) %>%
   mutate(total_prod_units = as.numeric((total_prod_units)))
 
+```
+
+**Ejidal and Communal Land, and Land for Individual Production**
+```{r}
 #tabulate land surface area according to property type
 land[is.na(land)] <- 0
 land$name <- gsub("[^[:alnum:][:blank:],.()-///' ]", "N", land$name)
@@ -238,7 +252,10 @@ land1 <- land %>%
          ejidal = as.numeric(ejidal), 
          comunal = as.numeric(comunal), 
          private = as.numeric(private))
+```
 
+**Subsistence Farming**
+```{r}
 #calculate units dedicate to subsistance farming
 subs[is.na(subs)] <- 0
 
@@ -246,13 +263,19 @@ subs1 <- subs %>%
   select(name, total_units = V5, subs_units = V6) %>%
   mutate(total_units = as.numeric((total_units)), 
          subs_units = as.numeric(subs_units))
+```
 
+**Cattle Production**
+```{r}
 #units with cattle needs to be calculated from total production units.
 cattle[is.na(cattle)] <- 0
 
 cattle1 <- cattle %>%
   select(name, total.cattle.units = V5) 
+```
 
+**Maize Yield**
+```{r}
 #maize yields in ton per hectare
 corn$V5[is.na(corn$V5)] <- 0
 corn$V6[is.na(corn$V6)] <- 0
@@ -260,7 +283,10 @@ corn$V7[is.na(corn$V7)] <- 0
 
 corn1 <- corn %>%
   select(name, corn.ha = V5, corn.tons = V7) 
+```
 
+**MERGE AGRICULTURAL DATA WITH MAIN DATAFRAME**
+```{r}
 #join agricultural variables 
 agr_var <- left_join(prod.units1, land1, by = "name")
 agr_var <- left_join(agr_var, subs1, by = "name" )
@@ -284,14 +310,16 @@ agr_var$name <- correct_mun(agr_var$name,
                             errors$agricola1991, errors$censo1990)
 
 df <- full_join(agr_var, main, by = "name")
+```
 
-#separate Oaxaca and rest of states for variable calculation
+**Separate Oaxaca and Main Dataframe for Variable Calculation**
+```{r}
 df.main <- filter(df, !(muncode %in% 20001:20570))
 df.oax <- filter(df, muncode %in% 20001:20570)
+```
 
-
-#CALCULATING VARIABLES IN MAIN DATAFRAME
-
+**Calculate all Variables in Main Dataframe**
+```{r}
 #create variables with proportion of people living in towns of less than 2500, proportion
 #of indigenous speakers and proportion of illiteracy
 df.main <- df.main %>%
@@ -314,15 +342,20 @@ df.main <- df.main %>%
 df.main$log.corn.yield <- gsub("NaN", "0", df.main$log.corn.yield)
 df.main$log.corn.yield <- gsub("-Inf", "0", df.main$log.corn.yield)
 
-##ELEVATION
-#no information in the 1990 census, used the 1995 Conteo. 
-conteo.95 <- read.table("data/conteo_1995_37_var.txt", sep = "\t")
-conteo.95 <- tbl_df(conteo.95)
+```
+
+**Elevation**
+```{r}
+#information does not come directly from the census, but from the catalog of town names from 1990. 
+catalog <-read.dbf("data/cigel_1990_hab.dbf")
+
+catalog <- tbl_df(catalog)
 
 #select variables create muncodes, filter NAs
-elev <- conteo.95 %>%
-  select(state = V1, mun = V3, elev = V9) %>%
-  mutate(muncode = (state*1000) + mun) 
+elev <- catalog %>%
+  select(state = CVE_ENT, mun = CVE_MUN, elev = ALTITUD) %>%
+  mutate(state = as.numeric(as.character(state)), mun = as.numeric(as.character(mun)), 
+         elev = as.numeric(as.character(elev)), muncode = (state*1000) + mun) 
 
 elev[elev == ""] <- NA
 elev <- elev %>%
@@ -340,15 +373,19 @@ elev <- elev  %>%
 
 elev$sd.elev[is.na(elev$sd.elev)] <- 0
 df.main <- left_join(df.main, elev, by = "muncode") 
+```
 
-#store version of homicide rate for maps
-homs.for.map <- select(df.main, hom.rate, muncode)
+**Filter to Main Sample**
+```{r}
+#store version of homicide rate and sd.elev for maps. this does not include Oaxaca
+main.for.map <- select(df.main, muncode, hom.rate, sd.elev)
 
 #filter out all municipalities with more than 75% of pop living in towns of less than 2500 pop 
 sample.main <- filter(df.main, prop.less.2500 > .75)
+```
 
-
-##OAXACA
+**CONVERTING AND CALCULATING DATA FOR OAXACA**
+```{r}
 #load table with conversion table between municipalities and distritos for Oaxaca
 oaxaca.distritos <- read.xlsx("data/oaxaca_30distritos_2002.xls", 3, startRow = 5, endRow = 690, encoding = "latin1")
 
@@ -374,10 +411,10 @@ distritos <- distritos %>%
 df.oax$pop.less.2500[is.na(df.oax$pop.less.2500)] <- 0
 
 oaxaca.dist <- left_join(distritos, df.oax, by = "muncode") 
-oaxaca.dist <-filter(oaxaca.dist, !(is.na(name))) #REMOVE THIS ONCE MATCHING IS FIXED?
+oaxaca.dist <-filter(oaxaca.dist, !(is.na(name))) 
 
 #calculate the rest of the variables, create new municipality codes to correspond with districts
-oaxaca.dist <- oaxaca.dist  %>% #NOT WORKING YET, I THINK BECAUSE NAs
+oaxaca.dist <- oaxaca.dist  %>% 
   group_by(distrito) %>% 
   summarise(pop.less.2500 = sum(pop.less.2500), total.pop = sum(total.pop), prop.less.2500 = pop.less.2500/total.pop,
             indi = sum(indi), pct.indi = (indi/total.pop) * 100, 
@@ -412,6 +449,9 @@ elev.oax <- left_join(distritos, elev.oax, by = "muncode") %>%
 
 oaxaca.dist <- left_join(oaxaca.dist, elev.oax, by = "muncode")
 
+##select variables for dataframe used in map for Oaxaca
+oax.for.map <- select(oaxaca.dist, muncode, hom.rate, sd.elev)
+
 #filter to oaxaca sample 
 sample.oax <- oaxaca.dist %>%  
   filter(prop.less.2500 > .75) 
@@ -420,9 +460,10 @@ sample.oax <- oaxaca.dist %>%
 oaxaca.mun <- df.oax %>%
   left_join(distritos, df.oax, by = "muncode") %>%
   select(muncode, pop.less.2500, total.pop, distrito) 
+```
 
-
-##ORDER AND JOIN OAXACA AND MAIN DATAFRAMES
+**JOIN OAXACA AND MAIN DATAFRAMES TO FINAL SAMPLE**
+```{r}
 sample.main <- sample.main %>%
   select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface)
 
@@ -430,8 +471,6 @@ sample.oax <- sample.oax %>%
   select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface)
 
 sample <- rbind(sample.main, sample.oax) 
-
-
 ```
 
 **Visualizing Homicide Rates and Variation in Altitude in Mexican Municipalities**
@@ -442,28 +481,18 @@ Villarreal produced two maps with overlaid data as part of the paper; one showed
 
 ![Std. Deviation of Elevation in Mexican Municipalities ](data/elev.png)
 
-```{r}
-#create dataframes with homicide rate and standard deviation of elevation for ALL mexican municipalities 
-oaxaca.hom <- left_join(distritos, df.oax, by = "muncode")  %>%  
-    group_by(distrito)  %>% 
-    mutate(hom.total = sum(hom.total), hom.rate = hom.total/(total.pop*3)*100000) %>%
-    select(hom.rate, muncode, -distrito)
-
-com.hom <- intersect(colnames(homs.for.map), colnames(oaxaca.hom))
-homs.map <- rbind(subset(homs.for.map, select = com.hom), subset(oaxaca.hom, select = com.hom))
-
-com.elev <- intersect(colnames(elev), colnames(elev.map.oax))
-elev.map <- rbind(subset(elev, select = com.elev), subset(elev.map.oax, select = com.elev))
-elev.map$sd.elev[is.na(elev.map$sd.elev)] <- 0
-
-map.data <- left_join(elev.map, homs.map, by = "muncode")
-
-##create maps, using 1995 data because difference between 1995 and 1990 data is negligible
+```{r results='hide', message=FALSE, warning=FALSE}
 library(ggplot2)
 library(classInt)
 gpclibPermit()
+```
 
-#map.dbf <-read.dbf("data/mgm1995/Municipios_1995.DBF")
+**Prepare Maps**
+*Using 1995 data because difference between 1995 and 1990 data is negligible*
+```{r}
+map.data <- rbind(main.for.map, oax.for.map)
+
+#map.dbf <-read.dbf("data/maps/old_municipios1995-distritos.dbf")
 #map.dbf <- map.dbf %>%
   # mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
    #       CVE_ENT = as.numeric(as.character(CVE_ENT)),
@@ -472,56 +501,46 @@ gpclibPermit()
 #map.merged <- left_join(map.dbf, map.data, by = "muncode" )
 #map.merged <- map.merged[order(map.merged$OID), ]
 
-<<<<<<< HEAD
-#write.dbf(map.dbf, "data/mgm1995/old-Municipios_1995.DBF") #NOT WORKING
-#write.dbf(map.merged, "data/mgm1995/Municipios_1995.DBF") #NOT WORKING
-=======
-write.dbf(map.dbf, "data/mgm1995/Old_Municipios_1995.DBF") 
-write.dbf(map.merged, "data/mgm1995/Municipios_1995.DBF")
->>>>>>> 385db2399baac075e53c1d742a8649806f8ad4a2
+
+#write.dbf(map.dbf, "data/maps/old_municipios1995-distritos.dbf") 
+#write.dbf(map.merged, "data/maps/municipios1995-distritos.dbf")
 
 #intervals for color-coding and legend
-classIntervals(map.data$sd.elev, n = 4)
-classIntervals(map.data$hom.rate, n = 4)
+#classIntervals(map.data$sd.elev, n = 4)
+#classIntervals(map.data$hom.rate, n = 4)
 breaks_hom <- c(0, 15, 45, 75, 15432.1)
 labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
 breaks_elev <- c(0, 100, 200, 390, 1040.154)
 labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
 
-#creating maps
-map.shp <-  readShapePoly("data/mgm1995/Municipios_1995.shp")
+#preparing maps
+map.shp <-  readShapePoly("data/maps/municipios1995-distritos.shp")
 
-p <- ggplot(map.shp@data, aes(sd.elev, hom.rate))
+p <- ggplot(map.shp@data, aes(sd_elev, hom_rate))
 
 map_geom <- fortify(map.shp, region = "muncode")
 
 map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
 
-map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom)
+map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
 
-map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev)
+map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
+```
 
-#adding look/feel
+**Map of Homicide Rate**
+```{r}
 Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
- labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities")
+ labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 1990 - 1992")
 
+Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+```
+
+**Map of Standard Deviation of Elevation**
+```{r}
 Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
   labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
 
-Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
-
 Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
-
-#aesthetics code from first try
-#p <- ggplot(mex.map.homs, aes(x = long, y = lat, group = group))
-#p + geom_polygon(aes(fill = cut(hom.rate, 4))) +   
-#  labs(x=" ", y=" ") + 
-#  theme_bw() + 
-#  scale_fill_brewer("Ave. Homicide Rate 1990-2 (Per 100,000)", palette  = 'PuRd') + 
-#  coord_map() + 
-#  theme(panel.grid.minor=element_blank(), panel.grid.major=element_blank()) + 
-#  theme(axis.ticks = element_blank(), axis.text.x = element_blank(), axis.text.y = element_blank()) + 
-#  theme(panel.border = element_blank())
 ```
 
 **Results**
@@ -533,10 +552,12 @@ the underlying distribution of the dependent variable is assumed to be close to 
 
 ![Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)](data/Table1.png)
 
-```{r}
+```{r results='hide', message=FALSE, warning=FALSE}
 library(MASS)
 library(stargazer)
+```
 
+```{r}
 sample.tidy <- sample %>%
   gather(controls)
 
