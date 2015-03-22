@@ -27,7 +27,7 @@ of state institutions, they are also farther from medical services. [...] I ther
 
 *Variables were added to the dataset for analysis in order of the file they came from - i.e. all variables from the standard census dataset first, then variables regarding doctors, female-headed households, and percent young males (which each require special sub-datasets from the census), then elevation data, then population density (which requires map data about the area of municipalities), then homicides. The dummy variable was added last. Data regarding the state of Oaxaca were separated out through this process, as this state counts municipalities differently - each town is counted as its own municipality, which would skew the data. As noted above, Oaxacan municipalities are typically grouped into 30 districts for analysis--we completed this operation after creating the main analytical dataframe, recalculated all variables for the Oaxacan districts, and merged the two dataframes by municipality code. Variables drawn from the Agricultural Census were added next, as they required matching by name instead of municipality code due to the format of the raw data. Again, data from Oaxaca were separated, recalculated and then recombined with the main dataframe.*
 
-```{r}
+```{r, warning=FALSE, error=FALSE}
 library(ggplot2)
 library(dplyr)
 library(xlsx)
@@ -315,14 +315,15 @@ df.main$log.corn.yield <- gsub("NaN", "0", df.main$log.corn.yield)
 df.main$log.corn.yield <- gsub("-Inf", "0", df.main$log.corn.yield)
 
 ##ELEVATION
-#no information in the 1990 census, used the 1995 Conteo. 
-conteo.95 <- read.table("data/conteo_1995_37_var.txt", sep = "\t")
-conteo.95 <- tbl_df(conteo.95)
+#information does not come directly from the census, but from the catalog of town names from 1990. 
+catalog <-read.dbf("data/cigel_1990_hab.dbf")
+catalog <- tbl_df(catalog)
 
 #select variables create muncodes, filter NAs
-elev <- conteo.95 %>%
-  select(state = V1, mun = V3, elev = V9) %>%
-  mutate(muncode = (state*1000) + mun) 
+elev <- catalog %>%
+  select(state = CVE_ENT, mun = CVE_MUN, elev = ALTITUD) %>%
+  mutate(state = as.numeric(as.character(state)), mun = as.numeric(as.character(mun)), 
+         elev = as.numeric(as.character(elev)), muncode = (state*1000) + mun) 
 
 elev[elev == ""] <- NA
 elev <- elev %>%
@@ -341,8 +342,8 @@ elev <- elev  %>%
 elev$sd.elev[is.na(elev$sd.elev)] <- 0
 df.main <- left_join(df.main, elev, by = "muncode") 
 
-#store version of homicide rate for maps
-homs.for.map <- select(df.main, hom.rate, muncode)
+#store version of homicide rate and sd.elev for maps. this does not include Oaxaca
+main.for.map <- select(df.main, muncode, hom.rate, sd.elev)
 
 #filter out all municipalities with more than 75% of pop living in towns of less than 2500 pop 
 sample.main <- filter(df.main, prop.less.2500 > .75)
@@ -397,6 +398,7 @@ oaxaca.dist <- oaxaca.dist  %>% #NOT WORKING YET, I THINK BECAUSE NAs
   select(-no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -total.cattle.units, -subs_units, -total_units, -corn.tons, -corn.ha) %>%
   mutate(muncode = distrito + 20000)
 
+
 #calculate SD of elevation for map and dataframe, and state of mexico dummy variable and add them to the oaxaca dataset
 elev.map.oax <- left_join(distritos, elev.oax, by = "muncode") %>%
   group_by(distrito) %>%
@@ -411,6 +413,9 @@ elev.oax <- left_join(distritos, elev.oax, by = "muncode") %>%
   select(muncode, sd.elev, dummy.SOM)
 
 oaxaca.dist <- left_join(oaxaca.dist, elev.oax, by = "muncode")
+
+##select variables for dataframe used in map for Oaxaca
+oax.for.map <- select(oaxaca.dist, muncode, hom.rate, sd.elev)
 
 #filter to oaxaca sample 
 sample.oax <- oaxaca.dist %>%  
@@ -442,28 +447,33 @@ Villarreal produced two maps with overlaid data as part of the paper; one showed
 
 ![Std. Deviation of Elevation in Mexican Municipalities ](data/elev.png)
 
-```{r}
+```{r, warning=FALSE, error=FALSE}
+
+
+map.data <- rbind(main.for.map, oax.for.map)
+
+
 #create dataframes with homicide rate and standard deviation of elevation for ALL mexican municipalities 
-oaxaca.hom <- left_join(distritos, df.oax, by = "muncode")  %>%  
-    group_by(distrito)  %>% 
-    mutate(hom.total = sum(hom.total), hom.rate = hom.total/(total.pop*3)*100000) %>%
-    select(hom.rate, muncode, -distrito)
-
-com.hom <- intersect(colnames(homs.for.map), colnames(oaxaca.hom))
-homs.map <- rbind(subset(homs.for.map, select = com.hom), subset(oaxaca.hom, select = com.hom))
-
-com.elev <- intersect(colnames(elev), colnames(elev.map.oax))
-elev.map <- rbind(subset(elev, select = com.elev), subset(elev.map.oax, select = com.elev))
-elev.map$sd.elev[is.na(elev.map$sd.elev)] <- 0
-
-map.data <- left_join(elev.map, homs.map, by = "muncode")
+# oaxaca.hom <- left_join(distritos, df.oax, by = "muncode")  %>%  
+#     group_by(distrito)  %>% 
+#     mutate(hom.total = sum(hom.total), hom.rate = hom.total/(total.pop*3)*100000) %>%
+#     select(hom.rate, muncode, -distrito)
+# 
+# com.hom <- intersect(colnames(homs.for.map), colnames(oaxaca.hom))
+# homs.map <- rbind(subset(homs.for.map, select = com.hom), subset(oaxaca.hom, select = com.hom))
+# 
+# com.elev <- intersect(colnames(elev), colnames(elev.map.oax))
+# elev.map <- rbind(subset(elev, select = com.elev), subset(elev.map.oax, select = com.elev))
+# elev.map$sd.elev[is.na(elev.map$sd.elev)] <- 0
+# 
+# map.data <- left_join(elev.map, homs.map, by = "muncode")
 
 ##create maps, using 1995 data because difference between 1995 and 1990 data is negligible
-library(ggplot2)
-library(classInt)
-gpclibPermit()
 
-#map.dbf <-read.dbf("data/mgm1995/Municipios_1995.DBF")
+#library(classInt)
+
+
+#map.dbf <-read.dbf("data/maps/old_municipios1995-distritos.dbf")
 #map.dbf <- map.dbf %>%
   # mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
    #       CVE_ENT = as.numeric(as.character(CVE_ENT)),
@@ -472,45 +482,48 @@ gpclibPermit()
 #map.merged <- left_join(map.dbf, map.data, by = "muncode" )
 #map.merged <- map.merged[order(map.merged$OID), ]
 
-<<<<<<< HEAD
-#write.dbf(map.dbf, "data/mgm1995/old-Municipios_1995.DBF") #NOT WORKING
-#write.dbf(map.merged, "data/mgm1995/Municipios_1995.DBF") #NOT WORKING
-=======
-write.dbf(map.dbf, "data/mgm1995/Old_Municipios_1995.DBF") 
-write.dbf(map.merged, "data/mgm1995/Municipios_1995.DBF")
->>>>>>> 385db2399baac075e53c1d742a8649806f8ad4a2
+
+#write.dbf(map.dbf, "data/maps/old_municipios1995-distritos.dbf") 
+#write.dbf(map.merged, "data/maps/municipios1995-distritos.dbf")
+
 
 #intervals for color-coding and legend
-classIntervals(map.data$sd.elev, n = 4)
-classIntervals(map.data$hom.rate, n = 4)
+#classIntervals(map.data$sd.elev, n = 4)
+#classIntervals(map.data$hom.rate, n = 4)
 breaks_hom <- c(0, 15, 45, 75, 15432.1)
 labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
 breaks_elev <- c(0, 100, 200, 390, 1040.154)
 labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
 
-#creating maps
-map.shp <-  readShapePoly("data/mgm1995/Municipios_1995.shp")
 
-p <- ggplot(map.shp@data, aes(sd.elev, hom.rate))
+#creating maps
+map.shp <-  readShapePoly("data/maps/municipios1995-distritos.shp")
+
+p <- ggplot(map.shp@data, aes(sd_elev, hom_rate))
+
+gpclibPermit()
 
 map_geom <- fortify(map.shp, region = "muncode")
 
 map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
 
-map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom)
+map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
 
-map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev)
+map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
 
-#adding look/feel
+##maps for homicides and elevation
+
 Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
- labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities")
+ labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 1990 - 1992")
+
+Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+
 
 Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
   labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
 
-Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
-
 Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+
 
 #aesthetics code from first try
 #p <- ggplot(mex.map.homs, aes(x = long, y = lat, group = group))
@@ -534,24 +547,24 @@ the underlying distribution of the dependent variable is assumed to be close to 
 ![Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)](data/Table1.png)
 
 ```{r}
-library(MASS)
-library(stargazer)
-
-sample.tidy <- sample %>%
-  gather(controls)
-
-One.a <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
-
-summary(One.a)
-
-One.b <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and Thiel's land inequality
-
-summary(One.b)
-
-One.c <- glm.nb(hom.rate ~ log.pop.surface, data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
-+ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,
-summary(One.c)
-#ADD STARGAZER
+# library(MASS)
+# library(stargazer)
+# 
+# sample.tidy <- sample %>%
+#   gather(controls)
+# 
+# One.a <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+# 
+# summary(One.a)
+# 
+# One.b <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and Thiel's land inequality
+# 
+# summary(One.b)
+# 
+# One.c <- glm.nb(hom.rate ~ log.pop.surface, data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
+# + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,
+# summary(One.c)
+# #ADD STARGAZER
 ```
 
 3 Models for Hypotheses 3 and 4:
@@ -562,18 +575,18 @@ summary(One.c)
 
 ```{r}
 
-Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
-
-summary(Two.a)
-
-Two.b <- glm.nb(hom.rate ~ pct.individual + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
-
-summary(Two.b)
-
-Two.c <- glm.nb(hom.rate ~ pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
-
-summary(Two.c)
-#ADD STARGAZER
+# Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+# 
+# summary(Two.a)
+# 
+# Two.b <- glm.nb(hom.rate ~ pct.individual + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+# 
+# summary(Two.b)
+# 
+# Two.c <- glm.nb(hom.rate ~ pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+# 
+# summary(Two.c)
+# #ADD STARGAZER
 
 ```
 
@@ -585,11 +598,11 @@ summary(Two.c)
 
 ```{r}
 
-Three <- glm.nb(hom.rate ~ sd.elev + pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
-
-summary(Three)
-
-#ADD STARGAZER
+# Three <- glm.nb(hom.rate ~ sd.elev + pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+# 
+# summary(Three)
+# 
+# #ADD STARGAZER
 ```
 
 **Conclusions**
