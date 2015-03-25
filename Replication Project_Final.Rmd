@@ -480,6 +480,10 @@ sample.oax <- sample.oax %>%
   select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface)
 
 sample <- rbind(sample.main, sample.oax) 
+
+#fix log corn yield, which was somehow coded as a character string
+
+sample$log.corn.yield <- as.numeric(sample$log.corn.yield)
 ```
 
 **Visualizing Homicide Rates and Variation in Altitude in Mexican Municipalities**
@@ -496,28 +500,12 @@ library(classInt)
 gpclibPermit()
 ```
 
-```{r, warning=FALSE, error=FALSE}
-map.data <- rbind(main.for.map, oax.for.map)
-
-#create dataframes with homicide rate and standard deviation of elevation for ALL mexican municipalities 
-# oaxaca.hom <- left_join(distritos, df.oax, by = "muncode")  %>%  
-#     group_by(distrito)  %>% 
-#     mutate(hom.total = sum(hom.total), hom.rate = hom.total/(total.pop*3)*100000) %>%
-#     select(hom.rate, muncode, -distrito)
-# 
-# com.hom <- intersect(colnames(homs.for.map), colnames(oaxaca.hom))
-# homs.map <- rbind(subset(homs.for.map, select = com.hom), subset(oaxaca.hom, select = com.hom))
-# 
-# com.elev <- intersect(colnames(elev), colnames(elev.map.oax))
-# elev.map <- rbind(subset(elev, select = com.elev), subset(elev.map.oax, select = com.elev))
-# elev.map$sd.elev[is.na(elev.map$sd.elev)] <- 0
-# 
-# map.data <- left_join(elev.map, homs.map, by = "muncode")
-```
-
 **Prepare Maps**
 *Using 1995 data because difference between 1995 and 1990 data is negligible*
 ```{r, warning=FALSE, error=FALSE}
+
+map.data <- rbind(main.for.map, oax.for.map)
+
 #map.dbf <-read.dbf("data/maps/old_municipios1995-distritos.dbf")
 #map.dbf <- map.dbf %>%
   # mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
@@ -586,22 +574,23 @@ library(stargazer)
 ```
 
 ```{r}
-# sample.tidy <- sample %>%
-#   gather(controls)
-# 
-# One.a <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
-# 
-# summary(One.a)
-# 
-# One.b <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and Thiel's land inequality
-# 
-# summary(One.b)
-# 
-# One.c <- glm.nb(hom.rate ~ log.pop.surface, data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
-# + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,
-# summary(One.c)
-# #ADD STARGAZER
+One.a <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
 
+summary(One.a)
+
+One.b <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and Thiel's land inequality
+
+summary(One.b)
+
+One.c <- glm.nb(hom.rate ~ log.pop.surface + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
+ 
+summary(One.c)
+
+stargazer(One.a, One.b, One.c, type = "text", title = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality", style = "ajs", covariate.labels=c("Plot size and crop yields: Log persons per hectare", ". Log maize yields", "Demographic variables: Log population density", ". % young males", ". % indigenous", "Resource Deprivation: Illiteracy rate", "Family Structure: % female-headed households", "Access to medical attention: Medical doctors per 10,000", "Geographical Region: Valley of Mexico"), dep.var.labels.include = FALSE, column.labels = c("Model 1", "Model 2", "Model 3"), model.numbers = FALSE, keep.stat = c("n", "ll", "chi2"), notes = "SEs in parentheses")
+
+screenreg(list(One.a, One.b, One.c), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "Log maize yields", "Log population density", ". % young males", ". % indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Log persons per hectare"), custom.note = "SEs in parentheses", include.intercept = TRUE, reorder.coef = c(10, 2, 3, 4, 5, 6, 7, 8, 9, 1), groups = list("Plot size and crop yields" = 1:2, "Demographic variables" = 3:5, "Resource deprivation" = 6, "Family structure" = 7, "Access to medical attention" = 8, "Geographical region" = 9), include.dispersion = TRUE) 
+          
+extract(One.a, include.loglik = TRUE, include.nobs = TRUE, include.dispersion = TRUE, include.rsquared = TRUE)
 ```
 
 3 Models for Hypotheses 3 and 4:
@@ -612,18 +601,18 @@ library(stargazer)
 
 ```{r, warning=FALSE, error=FALSE}
 
-# Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
-# 
-# summary(Two.a)
-# 
-# Two.b <- glm.nb(hom.rate ~ pct.individual + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
-# 
-# summary(Two.b)
-# 
-# Two.c <- glm.nb(hom.rate ~ pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
-# 
-# summary(Two.c)
-# #ADD STARGAZER
+Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+ 
+summary(Two.a)
+ 
+Two.b <- glm.nb(hom.rate ~ pct.individual + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+ 
+summary(Two.b)
+ 
+Two.c <- glm.nb(hom.rate ~ pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+ 
+summary(Two.c)
+#ADD STARGAZER
 
 ```
 
@@ -634,11 +623,11 @@ library(stargazer)
 ![Table 3: Continued)](data/Table3b.png)
 
 ```{r, warning=FALSE, error=FALSE}
-# Three <- glm.nb(hom.rate ~ sd.elev + pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
-# 
-# summary(Three)
-# 
-# #ADD STARGAZER
+Three <- glm.nb(hom.rate ~ sd.elev + pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+ 
+summary(Three)
+
+#ADD STARGAZER
 ```
 
 **Conclusions**
