@@ -429,9 +429,10 @@ df.main <- df.main %>%
 
 df.main$log.corn.yield <- gsub("NaN", "0", df.main$log.corn.yield)
 df.main$log.corn.yield <- gsub("-Inf", "0", df.main$log.corn.yield)
+```
 
-#Theil Index
-
+**Theil Index**
+```{r, warning=FALSE, error=FALSE}
 theil_prep <- left_join(plot_size, total_units, by = "muncode") %>%
   filter(!is.na(size)) %>%
   select(muncode, theil.area = area.ha, theil.units = units, theil.area.total = area.total, plot.total)
@@ -451,45 +452,7 @@ df.main <- left_join(df.main, theil_index, by = "muncode")
 # separate theil prep totals for Oaxaca
 plot_size.oax <- filter(plot_size, muncode %in% 20001:20570) 
 total_units.oax <- filter(total_units, muncode %in% 20001:20570) 
-
-
 ```
-
-```{r}
-
-
-##theil INDEX
-
-## calculate theil index
-## T = 1/u_tot * (summation from i=1 to G) (u_i)z_iln(z_i), 
-## where z_i = (s_i/u_i)/(s_tot/u_tot) is the ratio of the 
-## average plot size for agricultural units in plot size category 
-##i (their entire surface area s_i over the number of units u_tot) 
-## and G is the number of plot size categories
-
-theil_prep <- left_join(plot_size, total_units, by = "muncode") %>%
-  filter(!is.na(size)) %>%
-  select(muncode, theil.area = area.ha, theil.units = units, theil.area.total = area.total, plot.total)
-
-theil_index <- filter(theil_prep, !(muncode %in% 20001:20570))
-
-theil_index <- theil_index %>%
-  mutate(z1 = (theil.area/theil.units)/(theil.area.total/plot.total)) %>% # calculate z1
-  group_by(muncode, plot.total) %>%
-  summarise(summation = sum((theil.units*z1)*log(z1), na.rm = TRUE)) %>% #calculate summation
-  mutate(theil = (1/plot.total)*summation) %>%
-  select(muncode, theil)
-
-## join theil index with main data frame
-df.main <- left_join(df.main, theil_index, by = "muncode")
-
-## separate theil prep totals for Oaxaca
-plot_size.oax <- filter(plot_size, muncode %in% 20001:20570) 
-total_units.oax <- filter(total_units, muncode %in% 20001:20570) 
-
-
-```
-
 
 
 **Elevation**
@@ -614,35 +577,6 @@ theil_index.oax <- theil_prep.oax %>%
   mutate(muncode = distrito + 20000)
   
 #join theil index for oaxaca with oaxaca distrito data frame
-oaxaca.dist <- left_join(oaxaca.dist, theil_index.oax, by = "muncode")
-
-#Join distritos with total units for oaxaca, calculate values for distritos
-total_units.oax <- left_join(distritos, total_units.oax, by = "muncode") %>%
-  group_by(distrito) %>%
-  summarise(plot.total = sum(plot.total), area.total = sum(area.total))
-
-#Join distritos and plot size for oaxaca, calculate units and area by size for distritos
-plot_size.oax <- left_join(distritos, plot_size.oax, by = "muncode") %>%
-  select(muncode, distrito, units, area.ha, size) %>%
-  filter(!is.na(size)) %>%
-  group_by(distrito, size) %>%
-  summarise(units = sum(units, na.rm = TRUE), area.ha = sum(area.ha, na.rm = TRUE))
-
-#Join plot size and totals for distritos in oaxaca in order to calculate theil index
-theil_prep.oax <- left_join(plot_size.oax, total_units.oax, by = "distrito")
-
-#Calculate theil index and turn distritos into muncodes. 
-#Not sure about what to do with Inf and NaN values, removed NAs from calculation in order to keep more observations
-
-theil_index.oax <- theil_prep.oax %>%
-  mutate(z1 = (area.ha/units)/(area.total/plot.total)) %>% # calculate z1
-  group_by(distrito, plot.total) %>%
-  summarise(summation = sum((units*z1)*log(z1), na.rm = TRUE)) %>% #calculate summation
-  mutate(theil = (1/plot.total)*summation) %>%
-  select(distrito, theil) %>%
-  mutate(muncode = distrito + 20000)
-  
-#Join theil index for oaxaca with oaxaca distrito data frame
 oaxaca.dist <- left_join(oaxaca.dist, theil_index.oax, by = "muncode")
 
 #Calculate SD of elevation for map and dataframe, and state of mexico dummy variable and add them to the oaxaca dataset
