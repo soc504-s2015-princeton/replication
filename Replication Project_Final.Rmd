@@ -80,7 +80,6 @@ mun.total$mun_name <- toupper(mun.total$mun_name)
 mun.total$mun_name <- gsub("`|\\'", "", iconv(mun.total$mun_name, to="ASCII//TRANSLIT"))
 mun.total$mun_name <- gsub("~","", mun.total$mun_name)
 mun.total$mun_name <- gsub("\"","", mun.total$mun_name)
-
 ```
 
 **Doctors**
@@ -240,7 +239,6 @@ prod_units[is.na(prod_units)] <- 0
 prod.units1 <- prod_units %>%
   select(name, total_prod_units = V3) %>%
   mutate(total_prod_units = as.numeric((total_prod_units)))
-
 ```
 
 **Ejidal and Communal Land, and Land for Individual Production**
@@ -306,13 +304,11 @@ agr_var <- left_join(agr_var, corn1, by = "name" )
 agr_var <- left_join(agr_var, cattle1, by = "name" )
 agr_var <- left_join(agr_var, coffee1, by = "name" )
 
-#join main dataframe with agricultural variables
-
-# load dataframes with common mistakes in municipality names
+#load dataframes with common mistakes in municipality names
 errors <- read.csv("data/mun_name_errors.csv", header = TRUE)
 
 
-# function correct_mun to change the of municipalities to match main data frame and agricultural variables 
+#function correct_mun to change the of municipalities to match main data frame and agricultural variables 
 correct_mun <- function(x, pattern, replace) {
   for (i in seq_along(pattern))
     x <- gsub(pattern[i], replace[i], x, fixed = TRUE)
@@ -322,74 +318,69 @@ correct_mun <- function(x, pattern, replace) {
 agr_var$name <- correct_mun(agr_var$name, 
                             errors$agricola1991, errors$censo1990)
 
+#join main dataframe with agricultural variables
 df <- full_join(agr_var, main, by = "name")
 ```
 
 **Theil Index and proportion of plots of 5 HA or less**
-
 ```{r, warning=FALSE, error=FALSE}
-
-## load data for plot size, 6 categories, skip 15 irrelevant lines
+#load data for plot size, 6 categories, skip 15 irrelevant lines
 plot_size <- read.csv("data/censo_agricola_1991_plotsize.csv", skip = 15, 
                       nrows = 16038, stringsAsFactors = FALSE)
 
-## select vectors and rename them to make then legible
+#select vectors and rename them to make then legible
 plot_size <- tbl_df(plot_size) %>%
   select(state = X00, mun = X, state.name = X.1, mun.name = X.2,
          size = MAS.DE.2500.HA., units = X1.625, area.ha =  X1.127.522.14)
 
-## add NAs to blank spaces in state and municipality names
+#add NAs to blank spaces in state and municipality names
 plot_size$state.name[plot_size$state.name == ""] <- NA
 plot_size$mun.name[plot_size$mun.name == ""] <- NA
 
-## loop to identify with a 0 value totals for states. 
+#loop to identify with a 0 value totals for states. 
 for (i in 1:nrow(plot_size)) {
   if (!is.na(plot_size$state.name[i])) {
     plot_size$mun[i] <- 0
   }
 }
-  
 
-## add mun numbers to all NAs taking the last number as the value
+#add mun numbers to all NAs taking the last number as the value
 plot_size$mun <- na.locf(plot_size$mun) 
 
-## filter out state total identified with a 0 mun number
+#filter out state total identified with a 0 mun number
 plot_size <- plot_size %>%
   filter(mun != 0) %>%
   select(-state.name) %>%
   mutate(muncode = (state * 1000) + mun)
   
-## add mun names to all NAs taking the last available name as the value
+#add mun names to all NAs taking the last available name as the value
 plot_size$mun.name <- na.locf(plot_size$mun.name)
 
-## add NAs to all missing values in the size vector in orde to identify, 
-## municipal totals
+#add NAs to all missing values in the size vector in order to identify, municipal totals
 plot_size$size[plot_size$size == ""] <- NA
 
-## substitute with NA the "*" present in some observations for units, and 
-## strip out all blank space from the units vector
+#substitute with NA the "*" present in some observations for units, and strip out all blank space from the units vector
 plot_size$units[plot_size$units == "*"] <- NA
 plot_size$units <- gsub("[[:space:]]", "", plot_size$units)
 plot_size$area.ha<- gsub("[[:space:]]", "", plot_size$area.ha)
 
-## change class of the units vector to character
+#change class of the units vector to character
 plot_size$units <- as.numeric(plot_size$units)
 plot_size$area.ha <- as.numeric(plot_size$area.ha)
 
-## create dataframe with total number of units by municipality
+#create dataframe with total number of units by municipality
 total_units <- plot_size %>%
   filter(is.na(size)) %>% # NAs were used to filter only the municipality totals
   select(muncode, plot.total = units, area.total = area.ha)
 
-## PLOTS OF 5 HA OR LESS
-## create data frame with plots that are 5 HA or less, sum their totals
+#create data frame with plots that are 5 HA or less, sum their totals
 plot_upto5 <- plot_size %>%
   filter(size ==  "HASTA    2 HA." | size == "MAS DE    2 HASTA    5 HA.") %>%
   group_by(muncode) %>%
   summarise(units.to5 = sum(units)) %>%
   mutate(size = "HASTA 5 HA.")
 
-## join data frames for total units and 5 HA or less 
+#join data frames for total units and 5 HA or less 
 plot_upto5 <- left_join(total_units, plot_upto5, by = "muncode") %>%
   select(muncode, plot.total, units.to5, area.total)
 
@@ -413,25 +404,25 @@ df.main <- df.main %>%
          docs.per.10k = (doctors/total.pop) * 10000, 
          pct.fem.house = (fem.house/total.house) * 100,
          pct.young = (young.total/total.pop) * 100,
-         log.pop.dens = log(total.pop/sqkm),
+         log.pop.dens = log10(total.pop/sqkm),
          hom.rate = hom.total/(total.pop*3) * 100000,
          pct.ej = (ejidal/total_area) * 100, 
          pct.com = (comunal/total_area) * 100, 
          pct.individual = (private/total_area) * 100,
          pct.subs = (subs_units/total_units) * 100, 
-         log.corn.yield = log(corn.tons/corn.ha), 
+         log.corn.yield = log10(corn.tons/corn.ha), 
          pct.cattle = (total.cattle.units/total_prod_units) * 100,
          pct.coffee = (total.coffee.units/total_prod_units) * 100,
-         log.pop.surface = log(total.pop/total_area), 
+         log.pop.surface = log10(total.pop/total_area), 
          pct.upto5 = (units.to5/plot.total) * 100, 
-         log.avg.plot = log(area.total/plot.total)) %>%
+         log.avg.plot = log10(area.total/plot.total)) %>%
   select(-twn, -no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -up19, -up24, -up29, -total, -total_prod_units, -total_units, -corn.tons, -corn.ha, -total.cattle.units, -subs_units, - total.coffee.units)
 
 df.main$log.corn.yield <- gsub("NaN", "0", df.main$log.corn.yield)
 df.main$log.corn.yield <- gsub("-Inf", "0", df.main$log.corn.yield)
 ```
 
-**Theil Index**
+**Compute Theil Index**
 ```{r, warning=FALSE, error=FALSE}
 theil_prep <- left_join(plot_size, total_units, by = "muncode") %>%
   filter(!is.na(size)) %>%
@@ -446,10 +437,10 @@ theil_index <- theil_index %>%
   mutate(theil = (1/plot.total)*summation) %>%
   select(muncode, theil)
 
-# join theil index with main data frame
+#join theil index with main data frame
 df.main <- left_join(df.main, theil_index, by = "muncode")
 
-# separate theil prep totals for Oaxaca
+#separate theil prep totals for Oaxaca
 plot_size.oax <- filter(plot_size, muncode %in% 20001:20570) 
 total_units.oax <- filter(total_units, muncode %in% 20001:20570) 
 ```
@@ -489,7 +480,6 @@ df.main <- left_join(df.main, elev, by = "muncode")
 
 **Filter to Main Sample**
 ```{r, warning=FALSE, error=FALSE}
-
 #store version of homicide rate and sd.elev for maps. this does not include Oaxaca
 main.for.map <- select(df.main, muncode, hom.rate, sd.elev)
 
@@ -532,41 +522,39 @@ oaxaca.dist <- oaxaca.dist  %>%
   summarise(pop.less.2500 = sum(pop.less.2500), total.pop = sum(total.pop), prop.less.2500 = pop.less.2500/total.pop,
             indi = sum(indi), pct.indi = (indi/total.pop) * 100, 
             no.literacy = sum(no.literacy), no.lit.rate = no.literacy/total.pop,
-            sqkm = sum(sqkm), log.pop.dens = log(total.pop/sqkm), 
+            sqkm = sum(sqkm), log.pop.dens = log10(total.pop/sqkm), 
             doctors = sum(doctors), docs.per.10k = (doctors/total.pop)*10000, 
             fem.house = sum(fem.house), total.house = sum(total.house), pct.fem.house = (fem.house/total.house) * 100,
             young.total = sum(young.total), pct.young = (young.total/total.pop) * 100, 
             hom.total = sum(hom.total), hom.rate = hom.total/(total.pop*3)*100000,
-            ejidal = sum(ejidal), total_area = sum(total_area), log.pop.surface = log(total.pop/total_area), 
+            ejidal = sum(ejidal), total_area = sum(total_area), log.pop.surface = log10(total.pop/total_area), 
             pct.ej = (ejidal/total_area) * 100,
             comunal = sum(comunal), pct.com = (comunal/total_area) * 100,
             private = sum(private), pct.individual = (private/total_area) * 100,
             total.cattle.units = sum(total.cattle.units), total_prod_units = sum(total_prod_units), pct.cattle = (total.cattle.units/total_prod_units) * 100,
             subs_units = sum(subs_units), total_units = sum(total_units), pct.subs = (subs_units/total_units) * 100,
-            corn.tons = sum(corn.tons), corn.ha = sum(corn.ha), log.corn.yield = log(corn.tons/corn.ha),
+            corn.tons = sum(corn.tons), corn.ha = sum(corn.ha), log.corn.yield = log10(corn.tons/corn.ha),
             total.coffee.units = sum(total.coffee.units), pct.coffee = (total.coffee.units/total_prod_units) * 100, 
-            plot.total = sum(plot.total), units.to5 = sum(units.to5), pct.upto5 = (units.to5/plot.total) * 100, area.total = sum(area.total), log.avg.plot = log(area.total/plot.total)) %>%
+            plot.total = sum(plot.total), units.to5 = sum(units.to5), pct.upto5 = (units.to5/plot.total) * 100, area.total = sum(area.total), log.avg.plot = log10(area.total/plot.total)) %>%
   select(-no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -total.cattle.units, -subs_units, -total_units, -corn.tons, -corn.ha) %>%
   mutate(muncode = distrito + 20000)
 
-##calculate theil index for oaxaca by distrito.
-
-##join distritos with total units for oaxaca, calculate values for distritos
+#calculate theil index for oaxaca by distrito. join distritos with total units for oaxaca, calculate values for distritos
 total_units.oax <- left_join(distritos, total_units.oax, by = "muncode") %>%
   group_by(distrito) %>%
   summarise(plot.total = sum(plot.total), area.total = sum(area.total))
 
-##join distritos and plot dized for oaxaca, calculate units and area by size for distritos
+#join distritos and plot dized for oaxaca, calculate units and area by size for distritos
 plot_size.oax <- left_join(distritos, plot_size.oax, by = "muncode") %>%
   select(muncode, distrito, units, area.ha, size) %>%
   filter(!is.na(size)) %>%
   group_by(distrito, size) %>%
   summarise(units = sum(units, na.rm = TRUE), area.ha = sum(area.ha, na.rm = TRUE))
 
-##join plot size and totals for distritos in oaxaca in order to calculate theil index
+#join plot size and totals for distritos in oaxaca in order to calculate theil index
 theil_prep.oax <- left_join(plot_size.oax, total_units.oax, by = "distrito")
 
-## calculate theil index and turn distritos into muncodes. Not sure about what to do with Inf and NaN values, removed NAs from calculation in order to keep more observations
+#calculate theil index and turn distritos into muncodes. Not sure about what to do with Inf and NaN values, removed NAs from calculation in order to keep more observations
 
 theil_index.oax <- theil_prep.oax %>%
   mutate(z1 = (area.ha/units)/(area.total/plot.total)) %>% # calculate z1
@@ -579,7 +567,7 @@ theil_index.oax <- theil_prep.oax %>%
 #join theil index for oaxaca with oaxaca distrito data frame
 oaxaca.dist <- left_join(oaxaca.dist, theil_index.oax, by = "muncode")
 
-#Calculate SD of elevation for map and dataframe, and state of mexico dummy variable and add them to the oaxaca dataset
+#calculate SD of elevation for map and dataframe, and state of mexico dummy variable and add them to the oaxaca dataset
 elev.map.oax <- left_join(distritos, elev.oax, by = "muncode") %>%
   group_by(distrito) %>%
   mutate(sd.elev = sd(elev)) %>%
@@ -595,7 +583,7 @@ elev.oax <- left_join(distritos, elev.oax, by = "muncode") %>%
 
 oaxaca.dist <- left_join(oaxaca.dist, elev.oax, by = "muncode")
 
-##select variables for dataframe used in map for Oaxaca
+#select variables for dataframe used in map for Oaxaca
 oax.for.map <- select(oaxaca.dist, muncode, hom.rate, sd.elev)
 
 #filter to oaxaca sample 
@@ -619,7 +607,6 @@ sample.oax <- sample.oax %>%
 sample <- rbind(sample.main, sample.oax) 
 
 #fix log corn yield, which was somehow coded as a character string
-
 sample$log.corn.yield <- as.numeric(sample$log.corn.yield)
 ```
 
@@ -693,7 +680,6 @@ Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom
   labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
 
 Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
-
 ```
 
 **Results**
@@ -714,7 +700,6 @@ library(texreg)
 
 ```{r}
 #Create function to extract necessary goodness-of-fit statistics for table, such that it matches Villarreal's table
-
 extract.negbin <- function(model) {
   s <- summary(model)
   names <- rownames(s$coef)
@@ -722,7 +707,7 @@ extract.negbin <- function(model) {
   se <- s$coef[, 2]
   pval <- s$coef[, 4]
   
-  th <- s$theta
+  th <- 1/(s$theta)
   se.th <- s$SE.theta
   ll <- (s$twologlik)/2
   n <- nobs(model)
@@ -741,6 +726,7 @@ extract.negbin <- function(model) {
   return(tr)
   
   }
+
 ```
 
 Run models
@@ -759,9 +745,7 @@ One.c <- glm.nb(hom.rate ~ log.pop.surface + theil + log.corn.yield + log.pop.de
  
 summary(One.c)
 
-screenreg(list(extract.negbin(One.a), extract.negbin(One.b), extract.negbin(One.c)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Log persons per hectare"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(10, 2, 3, 4, 5, 6, 7, 8, 9, 1), groups = list("Plot size and crop yields" = 1:2, "Demographic variables" = 3:5, "Resource deprivation" = 6, "Family structure" = 7, "Access to medical attention" = 8, "Geographical region" = 9)) 
-
-#overdispersion parameter alpha may need to be inverse
+screenreg(list(extract.negbin(One.a), extract.negbin(One.b), extract.negbin(One.c)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Log average plot size", "Log persons per hectare"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 12, 13, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1), groups = list("Plot size and crop yields" = 1:5, "Demographic variables" = 6:8, "Resource deprivation" = 9, "Family structure" = 10, "Access to medical attention" = 11, "Geographical region" = 12)) 
 ```
 
 3 Models for Hypotheses 3 and 4:
@@ -776,7 +760,7 @@ Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.upto5 + theil + log.corn.yield
  
 summary(Two.a)
  
-Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + thiel + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
+Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
  
 summary(Two.b)
  
@@ -784,8 +768,7 @@ Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.subs + pct.coffee + pct.cattle
 
 summary(Two.c)
 
-screenreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "% individual production", "% cattle production", "% subsistence agriculture"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 12, 14, 13, 4, 5, 6, 7, 8, 9, 10, 11, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:5, "Plot size and crop yields" = 6, "Demographic variables" = 7:9, "Resource deprivation" = 10, "Family structure" = 11, "Access to medical attention" = 12, "Geographical region" = 13)) 
-
+screenreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "% individual production", "% coffee production", "% cattle production", "% subsistence agriculture"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 14, 17, 15, 16, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16)) 
 ```
 
 1 Model for Hypothesis 5: 
@@ -799,7 +782,7 @@ Three <- glm.nb(hom.rate ~ sd.elev + pct.ej + pct.com + pct.individual + pct.cof
 
 summary(Three)
 
-screenreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "% individual production", "% cattle production", "% ejido surface area", "% communal surface area", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 5, 6, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 1), groups = list("Local topography" = 1, "Collective ownership" = 2:3, "Organization of agricultural production" = 4:5, "Plot size and crop yields" = 6, "Demographic variables" = 7:9, "Resource deprivation" = 10, "Family structure" = 11, "Access to medical attention" = 12, "Geographical region" = 13)) 
+screenreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1), groups = list("Local topography" = 1, "Collective ownership" = 2:3, "Organization of agricultural production" = 4:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16)) 
 ```
 
 **Conclusions**
