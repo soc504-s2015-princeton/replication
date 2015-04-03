@@ -396,7 +396,7 @@ plot_upto5 <- plot_size %>%
 
 ## join data frames for total units and 5 HA or less 
 plot_upto5 <- left_join(total_units, plot_upto5, by = "muncode") %>%
-  select(muncode, plot.total, units.to5)
+  select(muncode, plot.total, units.to5, area.total)
 
 df <- left_join(df, plot_upto5, by = "muncode")
 
@@ -432,7 +432,8 @@ df.main <- df.main %>%
          pct.cattle = (total.cattle.units/total_prod_units) * 100,
          pct.coffee = (total.coffee.units/total_prod_units) * 100,
          log.pop.surface = log(total.pop/total_area), 
-         pct.upto5 = (units.to5/plot.total) * 100) %>%
+         pct.upto5 = (units.to5/plot.total) * 100, 
+         log.avg.plot = log(area.total/plot.total)) %>%
   select(-twn, -no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -up19, -up24, -up29, -total, -total_prod_units, -total_units, -corn.tons, -corn.ha, -total.cattle.units, -subs_units, - total.coffee.units)
 
 
@@ -446,32 +447,32 @@ df.main$log.corn.yield <- gsub("-Inf", "0", df.main$log.corn.yield)
 ```{r}
 
 
-##THIEL INDEX
+##theil INDEX
 
-## calculate thiel index
+## calculate theil index
 ## T = 1/u_tot * (summation from i=1 to G) (u_i)z_iln(z_i), 
 ## where z_i = (s_i/u_i)/(s_tot/u_tot) is the ratio of the 
 ## average plot size for agricultural units in plot size category 
 ##i (their entire surface area s_i over the number of units u_tot) 
 ## and G is the number of plot size categories
 
-thiel_prep <- left_join(plot_size, total_units, by = "muncode") %>%
+theil_prep <- left_join(plot_size, total_units, by = "muncode") %>%
   filter(!is.na(size)) %>%
-  select(muncode, thiel.area = area.ha, thiel.units = units, thiel.area.total = area.total, plot.total)
+  select(muncode, theil.area = area.ha, theil.units = units, theil.area.total = area.total, plot.total)
 
-thiel_index <- filter(thiel_prep, !(muncode %in% 20001:20570))
+theil_index <- filter(theil_prep, !(muncode %in% 20001:20570))
 
-thiel_index <- thiel_index %>%
-  mutate(z1 = (thiel.area/thiel.units)/(thiel.area.total/plot.total)) %>% # calculate z1
+theil_index <- theil_index %>%
+  mutate(z1 = (theil.area/theil.units)/(theil.area.total/plot.total)) %>% # calculate z1
   group_by(muncode, plot.total) %>%
-  summarise(summation = sum((thiel.units*z1)*log(z1), na.rm = TRUE)) %>% #calculate summation
-  mutate(thiel = (1/plot.total)*summation) %>%
-  select(muncode, thiel)
+  summarise(summation = sum((theil.units*z1)*log(z1), na.rm = TRUE)) %>% #calculate summation
+  mutate(theil = (1/plot.total)*summation) %>%
+  select(muncode, theil)
 
-## join thiel index with main data frame
-df.main <- left_join(df.main, thiel_index, by = "muncode")
+## join theil index with main data frame
+df.main <- left_join(df.main, theil_index, by = "muncode")
 
-## separate thiel prep totals for Oaxaca
+## separate theil prep totals for Oaxaca
 plot_size.oax <- filter(plot_size, muncode %in% 20001:20570) 
 total_units.oax <- filter(total_units, muncode %in% 20001:20570) 
 
@@ -485,8 +486,6 @@ total_units.oax <- filter(total_units, muncode %in% 20001:20570)
 #information does not come directly from the census, but from the catalog of town names from 1990. 
 catalog <-read.dbf("data/cigel_1990_hab.dbf")
 
-#information does not come directly from the census, but from the catalog of town names from 1990. 
-catalog <-read.dbf("data/cigel_1990_hab.dbf")
 
 catalog <- tbl_df(catalog)
 
@@ -572,11 +571,11 @@ oaxaca.dist <- oaxaca.dist  %>%
             subs_units = sum(subs_units), total_units = sum(total_units), pct.subs = (subs_units/total_units) * 100,
             corn.tons = sum(corn.tons), corn.ha = sum(corn.ha), log.corn.yield = log(corn.tons/corn.ha),
             total.coffee.units = sum(total.coffee.units), pct.coffee = (total.coffee.units/total_prod_units) * 100, 
-            plot.total = sum(plot.total), units.to5 = sum(units.to5), pct.upto5 = (units.to5/plot.total) * 100) %>%
+            plot.total = sum(plot.total), units.to5 = sum(units.to5), pct.upto5 = (units.to5/plot.total) * 100, area.total = sum(area.total), log.avg.plot = log(area.total/plot.total)) %>%
   select(-no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -total.cattle.units, -subs_units, -total_units, -corn.tons, -corn.ha) %>%
   mutate(muncode = distrito + 20000)
 
-##calculate thiel index for oaxaca by distrito.
+##calculate theil index for oaxaca by distrito.
 
 ##join distritots with total units for oaxaca, calculate values for distritos
 total_units.oax <- left_join(distritos, total_units.oax, by = "muncode") %>%
@@ -591,20 +590,20 @@ plot_size.oax <- left_join(distritos, plot_size.oax, by = "muncode") %>%
   summarise(units = sum(units, na.rm = TRUE), area.ha = sum(area.ha, na.rm = TRUE))
 
 ##join plot size and totals for distritos in oaxaca in order to calculate theil index
-thiel_prep.oax <- left_join(plot_size.oax, total_units.oax, by = "distrito")
+theil_prep.oax <- left_join(plot_size.oax, total_units.oax, by = "distrito")
 
 ## calculate theil index and turn distritos into muncodes. Not sure about what to do with Inf and NaN values, removed NAs from calculation in order to keep more observations
 
-thiel_index.oax <- thiel_prep.oax %>%
+theil_index.oax <- theil_prep.oax %>%
   mutate(z1 = (area.ha/units)/(area.total/plot.total)) %>% # calculate z1
   group_by(distrito, plot.total) %>%
   summarise(summation = sum((units*z1)*log(z1), na.rm = TRUE)) %>% #calculate summation
-  mutate(thiel = (1/plot.total)*summation) %>%
-  select(distrito, thiel) %>%
+  mutate(theil = (1/plot.total)*summation) %>%
+  select(distrito, theil) %>%
   mutate(muncode = distrito + 20000)
   
 #join theil index for oaxaca with oaxaca distrito data frame
-oaxaca.dist <- left_join(oaxaca.dist, thiel_index.oax, by = "muncode")
+oaxaca.dist <- left_join(oaxaca.dist, theil_index.oax, by = "muncode")
 
 
 #calculate SD of elevation for map and dataframe, and state of mexico dummy variable and add them to the oaxaca dataset
@@ -639,10 +638,10 @@ oaxaca.mun <- df.oax %>%
 **JOIN OAXACA AND MAIN DATAFRAMES TO FINAL SAMPLE**
 ```{r, warning=FALSE, error=FALSE}
 sample.main <- sample.main %>%
-  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, thiel)
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, theil, log.avg.plot)
 
 sample.oax <- sample.oax %>%
-  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, thiel)
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, theil, log.avg.plot)
 
 sample <- rbind(sample.main, sample.oax) 
 
@@ -742,15 +741,15 @@ library(texreg)
 ```
 
 ```{r, warning=FALSE, error=FALSE}
-One.a <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+One.a <- glm.nb(hom.rate ~ pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: % agricultural units 5 hectares or less, and theil's land inequality
 
 summary(One.a)
 
-One.b <- glm.nb(hom.rate ~ log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and Thiel's land inequality
+One.b <- glm.nb(hom.rate ~ log.avg.plot + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two of the three independent variables in this model: log average plot size, and theil's land inequality
 
 summary(One.b)
 
-One.c <- glm.nb(hom.rate ~ log.pop.surface + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,data = sample) #we are missing one of the three independent variables in this model: Thiel's land inequality
+One.c <- glm.nb(hom.rate ~ log.pop.surface + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,data = sample) #we are missing one of the three independent variables in this model: theil's land inequality
  
 summary(One.c)
 
@@ -768,15 +767,15 @@ screenreg(list(One.a, One.b, One.c), caption = "Table 1: Coefficients from the N
 
 ```{r, warning=FALSE, error=FALSE}
 
-Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and Thiel's land inequality
+Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing two independent variables in this model: % agricultural units 5 hectares or less, and theil's land inequality
  
 summary(Two.a)
  
-Two.b <- glm.nb(hom.rate ~ pct.individual + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and theil's land inequality
  
 summary(Two.b)
  
-Two.c <- glm.nb(hom.rate ~ pct.subs + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.subs + pct.coffee + pct.cattle + pct.upto5 + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and theil's land inequality
  
 summary(Two.c)
 
@@ -791,7 +790,7 @@ screenreg(list(Two.a, Two.b, Two.c), caption = "Table 2: Coefficients from the N
 ![Table 3: Continued)](data/Table3b.png)
 
 ```{r, warning=FALSE, error=FALSE}
-Three <- glm.nb(hom.rate ~ sd.elev + pct.individual + pct.cattle + pct.ej + pct.com + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and Thiel's land inequality
+Three <- glm.nb(hom.rate ~ sd.elev + pct.individual + pct.coffee + pct.cattle + pct.ej + pct.com + pct.upto5 + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) #we are missing three independent variables in this model: % coffee production, % agricultural units 5 hectares or less, and theil's land inequality
  
 summary(Three)
 
