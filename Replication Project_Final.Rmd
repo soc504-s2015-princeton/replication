@@ -343,8 +343,6 @@ plot_size$state.name[plot_size$state.name == ""] <- NA
 plot_size$mun.name[plot_size$mun.name == ""] <- NA
 
 ## loop to identify with a 0 value totals for states. 
->>>>>>> origin/master
-
 for (i in 1:nrow(plot_size)) {
   if (!is.na(plot_size$state.name[i])) {
     plot_size$mun[i] <- 0
@@ -382,7 +380,6 @@ plot_size$area.ha <- as.numeric(plot_size$area.ha)
 total_units <- plot_size %>%
   filter(is.na(size)) %>% # NAs were used to filter only the municipality totals
   select(muncode, plot.total = units, area.total = area.ha)
-
 
 ## PLOTS OF 5 HA OR LESS
 ## create data frame with plots that are 5 HA or less, sum their totals
@@ -591,12 +588,12 @@ oaxaca.dist <- oaxaca.dist  %>%
 
 ##calculate theil index for oaxaca by distrito.
 
-##join distritots with total units for oaxaca, calculate values for distritos
+##join distritos with total units for oaxaca, calculate values for distritos
 total_units.oax <- left_join(distritos, total_units.oax, by = "muncode") %>%
   group_by(distrito) %>%
   summarise(plot.total = sum(plot.total), area.total = sum(area.total))
 
-##join distrtidos and plot dized for oaxaca, calculate units and area by size for distritos
+##join distritos and plot dized for oaxaca, calculate units and area by size for distritos
 plot_size.oax <- left_join(distritos, plot_size.oax, by = "muncode") %>%
   select(muncode, distrito, units, area.ha, size) %>%
   filter(!is.na(size)) %>%
