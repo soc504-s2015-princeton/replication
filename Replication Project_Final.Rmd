@@ -13,7 +13,7 @@ We chose to replicate Andrés Villarreal's 2004 AJS paper, "The Social Ecology o
 
 I measure the scarcity of land for the sample of rural municipalities (hypothesis 1) in three different ways: the percentage of rural production units of five hectares of land or less, the log of the average plot size, and the log of persons per hectare of agricultural land. [...] Because the extent to which small plots of land satisfy the needs of residents will depend on the quality of the land, I introduce the log of maize yields (expressed as tons per hectare) along with each indicator of land scarcity in the regression models. [...] 
 
-The degree of land inequality (hypothesis 2) is measured by adapting an indicator commonly used for income inequality known as Theil’s index. [...] The index of land inequality is given by: T = 1/u_tot * (summation from i=1 to G) *(u_i)z_iln(z_i), where z_i = (s_i/u_i)/(s_tot/u_tot) is the ratio of the average plot size for agricultural units in plot size category i (their entire surface area s_i over the number of units u_tot) and G is the number of plot size categories. [..] The eight plot size categories are less than 2 hectares; 2–5 hectares; 5–20 hectares; 20–50 hectares; 50–100 hectares; 100–1,000 hectares; 1,000–2,500 hectares; and more than 2,500 hectares. 
+The degree of land inequality (hypothesis 2) is measured by adapting an indicator commonly used for income inequality known as Theil’s index. [...] The index of land inequality is given by: T = 1/u_tot * (summation from i=1 to G) (u_i)z_iln(z_i), where z_i = (s_i/u_i)/(s_tot/u_tot) is the ratio of the average plot size for agricultural units in plot size category i (their entire surface area s_i over the number of units u_tot) and G is the number of plot size categories. [..] The eight plot size categories are less than 2 hectares; 2–5 hectares; 5–20 hectares; 20–50 hectares; 50–100 hectares; 100–1,000 hectares; 1,000–2,500 hectares; and more than 2,500 hectares. 
 
 In order to test the third hypothesis regarding the effect of contingent or not well-enforced property rights (hypothesis 3), I enter the percentage of the rural surface area in each municipality constituted by ejidos and communal units according to the Agricultural and Livestock Census into the regression models. [...]
 
@@ -197,6 +197,8 @@ subs <- read.csv("data/censo_agricola_1991_autoconsumo.csv", header = FALSE, ski
 subs <- tbl_df(subs)
 cattle <- read.csv("data/censo_agricola_1991_cattle.csv", header = FALSE, skip = 10, stringsAsFactors = FALSE, encoding = "UTF-8")
 cattle <- tbl_df(cattle)
+coffee <- read.csv("data/censo_agricola_1991_coffee.csv", header = FALSE, skip = 1069, nrows = 1262, stringsAsFactors = FALSE, encoding = "UTF-8")
+coffee <- tbl_df(coffee)
 corn <- read.csv("data/censo_agricola_1991_corn.csv", header = FALSE, skip = 6187, nrows = 2426, stringsAsFactors = FALSE, encoding = "UTF-8")
 corn <- tbl_df(corn)
 
@@ -234,6 +236,7 @@ land <- naming(land)
 subs <- naming(subs)
 cattle <- naming(cattle)
 corn <- naming(corn)
+coffee <- naming(coffee)
 
 #get total producton units
 prod_units[is.na(prod_units)] <- 0
@@ -269,13 +272,21 @@ subs1 <- subs %>%
          subs_units = as.numeric(subs_units))
 ```
 
-**Cattle Production**
+**Cattle Production Units**
 ```{r, warning=FALSE, error=FALSE}
 #units with cattle needs to be calculated from total production units.
 cattle[is.na(cattle)] <- 0
 
 cattle1 <- cattle %>%
   select(name, total.cattle.units = V5) 
+```
+
+**Coffee Production Units**
+```{r, warning=FALSE, error=FALSE}
+coffee[is.na(coffee)] <- 0
+
+coffee1 <- coffee %>%
+  select(name, total.coffee.units = V4) 
 ```
 
 **Maize Yield**
@@ -296,6 +307,7 @@ agr_var <- left_join(prod.units1, land1, by = "name")
 agr_var <- left_join(agr_var, subs1, by = "name" )
 agr_var <- left_join(agr_var, corn1, by = "name" )
 agr_var <- left_join(agr_var, cattle1, by = "name" )
+agr_var <- left_join(agr_var, coffee1, by = "name" )
 
 #join main dataframe with agricultural variables
 
@@ -315,6 +327,84 @@ agr_var$name <- correct_mun(agr_var$name,
 
 df <- full_join(agr_var, main, by = "name")
 ```
+
+**Theil Index and proportion of plots of 5 HA or less**
+
+```{r, warning=FALSE, error=FALSE}
+## load data for plot size, 6 categories, skip 15 irrelevant lines
+plot_size <- read.csv("data/censo_agricola_1991_plotsize.csv", skip = 15, 
+                      nrows = 16038, stringsAsFactors = FALSE)
+
+## select vectors and rename them to make then legible
+plot_size <- tbl_df(plot_size) %>%
+  select(state = X00, mun = X, state.name = X.1, mun.name = X.2,
+         size = MAS.DE.2500.HA., units = X1.625, area.ha =  X1.127.522.14)
+
+## add NAs to blank spaces in state and municipality names
+plot_size$state.name[plot_size$state.name == ""] <- NA
+plot_size$mun.name[plot_size$mun.name == ""] <- NA
+
+## loop to identify with a 0 value totals for states. 
+
+for (i in 1:nrow(plot_size)) {
+  if (!is.na(plot_size$state.name[i])) {
+    plot_size$mun[i] <- 0
+  }
+}
+  
+## add mun numbers to all NAs taking the last number as the value
+plot_size$mun <- na.locf(plot_size$mun) 
+
+## filter out state total identified with a 0 mun number
+plot_size <- plot_size %>%
+  filter(mun != 0) %>%
+  select(-state.name) %>%
+  mutate(muncode = (state * 1000) + mun)
+  
+
+## add mun names to all NAs taking the last available name as the value
+plot_size$mun.name <- na.locf(plot_size$mun.name)
+
+## add NAs to all missing values in the size vector in orde to identify, 
+## municipal totals
+plot_size$size[plot_size$size == ""] <- NA
+
+## substitute with NA the "*" present in some observations for units, and 
+## strip out all blank space from the units vector
+plot_size$units[plot_size$units == "*"] <- NA
+plot_size$units <- gsub("[[:space:]]", "", plot_size$units)
+plot_size$area.ha<- gsub("[[:space:]]", "", plot_size$area.ha)
+
+
+## change class of the units vector to character
+plot_size$units <- as.numeric(plot_size$units)
+plot_size$area.ha <- as.numeric(plot_size$area.ha)
+
+## create dataframe with total number of units by municipality
+total_units <- plot_size %>%
+  filter(is.na(size)) %>% # NAs were used to filter only the municipality totals
+  select(muncode, plot.total = units, area.total = area.ha)
+
+
+## PLOTS OF 5 HA OR LESS
+## create data frame with plots that are 5 HA or less, sum their totals
+plot_upto5 <- plot_size %>%
+  filter(size ==  "HASTA    2 HA." | size == "MAS DE    2 HASTA    5 HA.") %>%
+  group_by(muncode) %>%
+  summarise(units.to5 = sum(units)) %>%
+  mutate(size = "HASTA 5 HA.")
+
+## join data frames for total units and 5 HA or less 
+plot_upto5 <- left_join(total_units, plot_upto5, by = "muncode") %>%
+  select(muncode, plot.total, units.to5)
+
+df <- left_join(df, plot_upto5, by = "muncode")
+
+
+
+
+```
+
 
 **Separate Oaxaca and Main Dataframe for Variable Calculation**
 ```{r, warning=FALSE, error=FALSE}
@@ -339,14 +429,56 @@ df.main <- df.main %>%
          pct.individual = (private/total_area) * 100,
          pct.subs = (subs_units/total_units) * 100, 
          log.corn.yield = log(corn.tons/corn.ha), 
-         pct.cattle = (total.cattle.units/total_prod_units) * 100, 
-         log.pop.surface = log(total.pop/total_area)) %>%
-  select(-twn, -no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -up19, -up24, -up29, -total, -total_prod_units, -total_units, -corn.tons, -corn.ha, -total.cattle.units, -subs_units)
+         pct.cattle = (total.cattle.units/total_prod_units) * 100,
+         pct.coffee = (total.coffee.units/total_prod_units) * 100,
+         log.pop.surface = log(total.pop/total_area), 
+         pct.upto5 = (units.to5/plot.total) * 100) %>%
+  select(-twn, -no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -up19, -up24, -up29, -total, -total_prod_units, -total_units, -corn.tons, -corn.ha, -total.cattle.units, -subs_units, - total.coffee.units)
 
+
+
+## I AM NOT SURE ABOUT THIS....ANYMORE
 df.main$log.corn.yield <- gsub("NaN", "0", df.main$log.corn.yield)
 df.main$log.corn.yield <- gsub("-Inf", "0", df.main$log.corn.yield)
 
 ```
+
+```{r}
+
+
+##THIEL INDEX
+
+## calculate thiel index
+## T = 1/u_tot * (summation from i=1 to G) (u_i)z_iln(z_i), 
+## where z_i = (s_i/u_i)/(s_tot/u_tot) is the ratio of the 
+## average plot size for agricultural units in plot size category 
+##i (their entire surface area s_i over the number of units u_tot) 
+## and G is the number of plot size categories
+
+thiel_prep <- left_join(plot_size, total_units, by = "muncode") %>%
+  filter(!is.na(size)) %>%
+  select(muncode, thiel.area = area.ha, thiel.units = units, thiel.area.total = area.total, plot.total)
+
+thiel_index <- filter(thiel_prep, !(muncode %in% 20001:20570))
+
+thiel_index <- thiel_index %>%
+  mutate(z1 = (thiel.area/thiel.units)/(thiel.area.total/plot.total)) %>% # calculate z1
+  group_by(muncode, plot.total) %>%
+  summarise(summation = sum((thiel.units*z1)*log(z1), na.rm = TRUE)) %>% #calculate summation
+  mutate(thiel = (1/plot.total)*summation) %>%
+  select(muncode, thiel)
+
+## join thiel index with main data frame
+df.main <- left_join(df.main, thiel_index, by = "muncode")
+
+## separate thiel prep totals for Oaxaca
+plot_size.oax <- filter(plot_size, muncode %in% 20001:20570) 
+total_units.oax <- filter(total_units, muncode %in% 20001:20570) 
+
+
+```
+
+
 
 **Elevation**
 ```{r, warning=FALSE, error=FALSE}
@@ -438,9 +570,41 @@ oaxaca.dist <- oaxaca.dist  %>%
             private = sum(private), pct.individual = (private/total_area) * 100,
             total.cattle.units = sum(total.cattle.units), total_prod_units = sum(total_prod_units), pct.cattle = (total.cattle.units/total_prod_units) * 100,
             subs_units = sum(subs_units), total_units = sum(total_units), pct.subs = (subs_units/total_units) * 100,
-            corn.tons = sum(corn.tons), corn.ha = sum(corn.ha), log.corn.yield = log(corn.tons/corn.ha)) %>%
+            corn.tons = sum(corn.tons), corn.ha = sum(corn.ha), log.corn.yield = log(corn.tons/corn.ha),
+            total.coffee.units = sum(total.coffee.units), pct.coffee = (total.coffee.units/total_prod_units) * 100, 
+            plot.total = sum(plot.total), units.to5 = sum(units.to5), pct.upto5 = (units.to5/plot.total) * 100) %>%
   select(-no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -total.cattle.units, -subs_units, -total_units, -corn.tons, -corn.ha) %>%
   mutate(muncode = distrito + 20000)
+
+##calculate thiel index for oaxaca by distrito.
+
+##join distritots with total units for oaxaca, calculate values for distritos
+total_units.oax <- left_join(distritos, total_units.oax, by = "muncode") %>%
+  group_by(distrito) %>%
+  summarise(plot.total = sum(plot.total), area.total = sum(area.total))
+
+##join distrtidos and plot dized for oaxaca, calculate units and area by size for distritos
+plot_size.oax <- left_join(distritos, plot_size.oax, by = "muncode") %>%
+  select(muncode, distrito, units, area.ha, size) %>%
+  filter(!is.na(size)) %>%
+  group_by(distrito, size) %>%
+  summarise(units = sum(units, na.rm = TRUE), area.ha = sum(area.ha, na.rm = TRUE))
+
+##join plot size and totals for distritos in oaxaca in order to calculate theil index
+thiel_prep.oax <- left_join(plot_size.oax, total_units.oax, by = "distrito")
+
+## calculate theil index and turn distritos into muncodes. Not sure about what to do with Inf and NaN values, removed NAs from calculation in order to keep more observations
+
+thiel_index.oax <- thiel_prep.oax %>%
+  mutate(z1 = (area.ha/units)/(area.total/plot.total)) %>% # calculate z1
+  group_by(distrito, plot.total) %>%
+  summarise(summation = sum((units*z1)*log(z1), na.rm = TRUE)) %>% #calculate summation
+  mutate(thiel = (1/plot.total)*summation) %>%
+  select(distrito, thiel) %>%
+  mutate(muncode = distrito + 20000)
+  
+#join theil index for oaxaca with oaxaca distrito data frame
+oaxaca.dist <- left_join(oaxaca.dist, thiel_index.oax, by = "muncode")
 
 
 #calculate SD of elevation for map and dataframe, and state of mexico dummy variable and add them to the oaxaca dataset
@@ -474,10 +638,10 @@ oaxaca.mun <- df.oax %>%
 **JOIN OAXACA AND MAIN DATAFRAMES TO FINAL SAMPLE**
 ```{r, warning=FALSE, error=FALSE}
 sample.main <- sample.main %>%
-  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface)
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, thiel)
 
 sample.oax <- sample.oax %>%
-  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface)
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, thiel)
 
 sample <- rbind(sample.main, sample.oax) 
 
