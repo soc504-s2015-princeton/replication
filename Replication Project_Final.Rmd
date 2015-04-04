@@ -40,6 +40,7 @@ library(maptools)
 library(gpclib) 
 library(RColorBrewer)
 library(scales)
+library(SDMTools)
 ```
 
 **Municipalities, Indigenous Language-Speakers, Illiteracy**
@@ -668,59 +669,59 @@ gpclibPermit()
 **Prepare Maps**
 *Using 1995 data because difference between 1995 and 1990 data is negligible*
 ```{r, warning=FALSE, error=FALSE}
-
-map.data <- rbind(main.for.map, oax.for.map)
-
-#map.dbf <-read.dbf("data/maps/old_municipios1995-distritos.dbf")
-#map.dbf <- map.dbf %>%
-  # mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
-   #       CVE_ENT = as.numeric(as.character(CVE_ENT)),
-   #       muncode = (CVE_ENT*1000) + CVE_MUN)
-            
-#map.merged <- left_join(map.dbf, map.data, by = "muncode" )
-#map.merged <- map.merged[order(map.merged$OID), ]
-
-#write.dbf(map.dbf, "data/maps/old_municipios1995-distritos.dbf") 
-#write.dbf(map.merged, "data/maps/municipios1995-distritos.dbf")
-
-#intervals for color-coding and legend
-#classIntervals(map.data$sd.elev, n = 4)
-#classIntervals(map.data$hom.rate, n = 4)
-breaks_hom <- c(0, 15, 45, 75, 15432.1)
-labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
-breaks_elev <- c(0, 100, 200, 390, 1040.154)
-labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
-
-#preparing maps
-map.shp <-  readShapePoly("data/maps/municipios1995-distritos.shp")
-
-p <- ggplot(map.shp@data, aes(sd_elev, hom_rate))
-
-
-map_geom <- fortify(map.shp, region = "muncode")
-
-map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
-
-map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
-
-map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
+# 
+# map.data <- rbind(main.for.map, oax.for.map)
+# # 
+# #map.dbf <-read.dbf("data/maps/old_municipios1995-distritos.dbf")
+# # #map.dbf <- map.dbf %>%
+# #    #mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
+# #    #       CVE_ENT = as.numeric(as.character(CVE_ENT)),
+# #    #       muncode = (CVE_ENT*1000) + CVE_MUN)
+# #             
+# map.merged <- left_join(map.dbf, map.data, by = "muncode" )
+# # map.merged <- map.merged[order(map.merged$OID), ]
+# # 
+# # #write.dbf(map.dbf, "data/maps/old_municipios1995-distritos.dbf") 
+# write.dbf(map.merged, "data/maps/municipios1995-distritos.dbf")
+# # 
+# # #intervals for color-coding and legend
+# # #classIntervals(map.data$sd.elev, n = 4)
+# # #classIntervals(map.data$hom.rate, n = 4)
+# breaks_hom <- c(0, 15, 45, 75, 15432.1)
+# labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
+# breaks_elev <- c(0, 100, 200, 390, 1040.154)
+# labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
+# 
+# #preparing maps
+# map.shp <-  readShapePoly("data/maps/municipios1995-distritos.shp")
+# 
+# p <- ggplot(map.shp@data, aes(sd_elev, hom_rate))
+# 
+# 
+# map_geom <- fortify(map.shp, region = "muncode")
+# 
+# map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
+# 
+# map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
+# 
+# map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
 
 ```
 
 **Map of Homicide Rate**
 ```{r, warning=FALSE, error=FALSE}
-Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
- labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 1990 - 1992")
-
-Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+# Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+#  labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 1990 - 1992")
+# 
+# Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
 ```
 
 **Map of Standard Deviation of Elevation**
 ```{r, warning=FALSE, error=FALSE}
-Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
-  labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
-
-Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+# Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+#   labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
+# 
+# Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
 ```
 
 **Results**
@@ -770,23 +771,30 @@ extract.negbin <- function(model) {
 
 ```
 
-Run models
+**We tested the texreg package before knitting and it produced nice tables but when we run it as html r markdown won't read it**
+
 ```{r, warning=FALSE, error=FALSE}
 #Run models and build tables
 
 One.a <- glm.nb(hom.rate ~ pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
 
-summary(One.a)
+ summary(One.a)
 
 One.b <- glm.nb(hom.rate ~ log.avg.plot + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
 
-summary(One.b)
+ summary(One.b)
 
 One.c <- glm.nb(hom.rate ~ log.pop.surface + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,data = sample) 
  
-summary(One.c)
+ summary(One.c)
 
-htmlreg(list(extract.negbin(One.a), extract.negbin(One.b), extract.negbin(One.c)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Log average plot size", "Log persons per hectare"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 12, 13, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1), groups = list("Plot size and crop yields" = 1:5, "Demographic variables" = 6:8, "Resource deprivation" = 9, "Family structure" = 10, "Access to medical attention" = 11, "Geographical region" = 12), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, star.symbol = "\*") 
+
+
+```
+
+
+```{r, results='asis'}
+screenreg(list(extract.negbin(One.a), extract.negbin(One.b), extract.negbin(One.c)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Log average plot size", "Log persons per hectare"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 12, 13, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1), groups = list("Plot size and crop yields" = 1:5, "Demographic variables" = 6:8, "Resource deprivation" = 9, "Family structure" = 10, "Access to medical attention" = 11, "Geographical region" = 12)) #inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, star.symbol = "\\*") 
 ```
 
 3 Models for Hypotheses 3 and 4:
@@ -808,8 +816,10 @@ summary(Two.b)
 Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.subs + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
 
 summary(Two.c)
+```
 
-htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "% individual production", "% coffee production", "% cattle production", "% subsistence agriculture"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 14, 17, 15, 16, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, star.symbol = "\*") 
+```{r, results='asis'}
+screenreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "% individual production", "% coffee production", "% cattle production", "% subsistence agriculture"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 14, 17, 15, 16, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16))# inline.css = TRUE, doctype = TRUE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE) 
 ```
 
 1 Model for Hypothesis 5: 
@@ -822,8 +832,10 @@ htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)
 Three <- glm.nb(hom.rate ~ weigh.elev + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
 
 summary(Three)
+```
 
-htmlreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1), groups = list("Local topography" = 1, "Collective ownership" = 2:3, "Organization of agricultural production" = 4:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, star.symbol = "\*") 
+```{r, results='asis'}
+screenreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1), groups = list("Local topography" = 1, "Collective ownership" = 2:3, "Organization of agricultural production" = 4:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16))# inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, star.symbol = "\\*") 
 ```
 
 **Conclusions**
