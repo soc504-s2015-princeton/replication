@@ -456,9 +456,9 @@ catalog <- tbl_df(catalog)
 
 #select variables create muncodes, filter NAs
 elev <- catalog %>%
-  select(state = CVE_ENT, mun = CVE_MUN, elev = ALTITUD) %>%
+  select(state = CVE_ENT, mun = CVE_MUN, twn = CVE_LOC, elev = ALTITUD) %>%
   mutate(state = as.numeric(as.character(state)), mun = as.numeric(as.character(mun)), 
-         elev = as.numeric(as.character(elev)), muncode = (state*1000) + mun) 
+         elev = as.numeric(as.character(elev)), muncode = (state*1000) + mun, twn = as.numeric(twn)) 
 
 elev[elev == ""] <- NA
 elev <- elev %>%
@@ -470,12 +470,38 @@ elev.oax <- filter(elev, muncode %in% 20001:20570)
 elev <- filter(elev, !(muncode %in% 20001:20570))
 
 #table with standard deviation for elevation among towns in a municipality
-elev <- elev  %>% 
+elev.sd <- elev  %>% 
   group_by(muncode) %>%
   summarise(sd.elev = sd(elev))
 
-elev$sd.elev[is.na(elev$sd.elev)] <- 0
-df.main <- left_join(df.main, elev, by = "muncode") 
+elev.sd$sd.elev[is.na(elev.sd$sd.elev)] <- 0
+df.main <- left_join(df.main, elev.sd, by = "muncode")
+
+## sd elevation weighted by population
+
+##create data fratem with population at the town level
+censo.2 <- tbl_df(censo90) %>%
+  filter(mun !=0 ) %>%
+  select(state = entidad, mun, twn = loc, total.pop = p_total) %>%
+  mutate(muncode = (state * 1000)+mun) %>%
+  filter(muncode > 1000) %>%
+  filter(twn != 0 & twn != 9998 & twn != 9999) # filter undeterminde town data
+
+##join population and elevation by muncode and town
+pop_elev <- left_join(censo.2, elev, by = c("muncode", "twn"))
+
+## filter out the Oaxaca data frame
+pop_elev.main <- filter(pop_elev, !(muncode %in% 20001:20570))
+pop_elev.oax <- filter(pop_elev, muncode %in% 20001:20570)
+
+## calculate sd elevation weighted by population group by municipality
+weigh_elev.main <- pop_elev.main %>% 
+  group_by(muncode) %>% 
+  summarise(weigh.elev = wt.sd(elev, total.pop)) # use SDMTools to calculate weighted sd
+
+df.main <- left_join(df.main, weigh_elev.main, by = "muncode")
+
+
 ```
 
 **Filter to Main Sample**
@@ -539,6 +565,21 @@ oaxaca.dist <- oaxaca.dist  %>%
   select(-no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -total.cattle.units, -subs_units, -total_units, -corn.tons, -corn.ha) %>%
   mutate(muncode = distrito + 20000)
 
+## ADDING SD ELEVATION WEIGHTED BY POPULATION TO OAXACA
+
+## join population and elevation data frame with distritos in oaxaca 
+pop_elev.dis <- left_join(pop_elev.oax, distritos, by = "muncode")
+
+## calculate sd elevation weighted by population grouped by distrito
+weigh_elev.oax <- pop_elev.dis %>% 
+  group_by(distrito) %>% 
+  summarise(weigh.elev = wt.sd(elev, total.pop)) %>% # use SDMTools to calculate weighted sd
+  mutate(muncode = 20000 + distrito) %>%
+  select(-distrito)
+
+## join weighted elevation with oaxaca main data frame
+oaxaca.dist <- left_join(oaxaca.dist, weigh_elev.oax, by = "muncode")
+
 #calculate theil index for oaxaca by distrito. join distritos with total units for oaxaca, calculate values for distritos
 total_units.oax <- left_join(distritos, total_units.oax, by = "muncode") %>%
   group_by(distrito) %>%
@@ -599,10 +640,10 @@ oaxaca.mun <- df.oax %>%
 **JOIN OAXACA AND MAIN DATAFRAMES TO FINAL SAMPLE**
 ```{r, warning=FALSE, error=FALSE}
 sample.main <- sample.main %>%
-  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, theil, log.avg.plot)
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, theil, log.avg.plot, weigh.elev)
 
 sample.oax <- sample.oax %>%
-  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, theil, log.avg.plot)
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, theil, log.avg.plot, weigh.elev)
 
 sample <- rbind(sample.main, sample.oax) 
 
@@ -778,7 +819,7 @@ screenreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.
 ![Table 3: Continued)](data/Table3b.png)
 
 ```{r, warning=FALSE, error=FALSE}
-Three <- glm.nb(hom.rate ~ sd.elev + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
+Three <- glm.nb(hom.rate ~ weigh.elev + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
 
 summary(Three)
 
