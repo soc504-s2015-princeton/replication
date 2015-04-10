@@ -808,9 +808,6 @@ One.b <- glm.nb(hom.rate ~ log.avg.plot + theil + log.corn.yield + log.pop.dens 
 One.c <- glm.nb(hom.rate ~ log.pop.surface + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,data = sample) 
  
  summary(One.c)
-
-
-
 ```
 
 
@@ -865,10 +862,18 @@ Higher land scarcity and agricultural units organized by group were not found to
 
 *In the end, we were unable to replicate Villarreal's results. We have examined our code and cannot find an explanation for this result in the way we produced the replication. We have two ideas as to why this may have happened: (1) As Matt noted in his feedback, it became clear to us in prepping the data for the replication that Villarreal made many hidden choices in his analysis--primarily when it came to selecting the census fields to use in his analysis (i.e. the census contained many very similar fields and it was clearly a judgement call as to which one to use for which variable in the analysis), and in deciding how to deal with missing data or situations in which computing rates or other calculated variables produced undefined values. Because there was no documentation as to the particular fields Villarreal incorporated into his analysis or how he handled missing data, our choices in dealing with the above issues may have diverged from his methods, which could be the source of the discrepancies in our results. (2) It may be that the data Villarreal received from the Mexican government is different than the data we received. Data files may have been updated or changed in the intervening years, something we have no way to confirm or reject, or the data may have been packaged differently, depending on the way in which he accessed it. As one of our next steps in investigating why this discrepancy occurred, we plan to send our replication attempt to Villarreal and ask for his feedback.*
 
+**Identifying Problems Inhibiting Replication**
+*Sample size problem, looking for numbers above 11*
 ```{r}
-#identifying sample size problem
 apply(sample, 2, function(x) length(which(is.na(x))))
 
-#looking for numbers above 11 for variables in table 1: pct.upto5 (45 NAs)
+#pct.upto5 (45 NAs). It appears that something may be wrong with the data on plot size, which would affect the Thiel index and variable regarding plots 5 HA or less.
 ```
 
+*Potential variable selection issues:* 
+
+-*Cattle* - unsure which total to use (multiple distinct totals regarding head of cattle on different spreadsheets)
+
+-*General issue about inconsistent use of rural production units vs. total (urban + rural) production units.* Coffee units drawn from spreadsheet referencing total units, corn units from spreadsheet referencing only rural units. The percent of units dedicated to each is calculated using total_prod_units as a denominator, which references rural units ONLY. The plot size variables are calculated from a spreadsheet that references rural units only, this is not specified in the paper except for in the variable about plot sizes 5 HA or less. Susbistence agricultural units are from spreadsheet referencing urban and rural, while ejidal, comunal, and private land is drawn from spreadsheet of rural only. Villarreal is not very careful about specifying this.
+
+-*Corn tons per HA* - Used planted HA as denominator, should we have used harvested instead?
