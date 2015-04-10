@@ -491,7 +491,7 @@ df.main <- left_join(df.main, elev.sd, by = "muncode")
 
 ## sd elevation weighted by population
 
-##create data fratem with population at the town level
+##create data frame with population at the town level
 censo.2 <- tbl_df(censo90) %>%
   filter(mun !=0 ) %>%
   select(state = entidad, mun, twn = loc, total.pop = p_total) %>%
@@ -504,7 +504,8 @@ pop_elev <- left_join(censo.2, elev, by = c("muncode", "twn"))
 
 ## filter out the Oaxaca data frame
 pop_elev.main <- filter(pop_elev, !(muncode %in% 20001:20570))
-pop_elev.oax <- filter(pop_elev, muncode %in% 20001:20570)
+pop_elev.oax <- left_join(censo.2, elev.oax, by = c("muncode", "twn")) %>%
+  filter(muncode %in% 20001:20570)
 
 ## calculate sd elevation weighted by population group by municipality
 weigh_elev.main <- pop_elev.main %>% 
@@ -512,8 +513,6 @@ weigh_elev.main <- pop_elev.main %>%
   summarise(weigh.elev = wt.sd(elev, total.pop)) # use SDMTools to calculate weighted sd
 
 df.main <- left_join(df.main, weigh_elev.main, by = "muncode")
-
-
 ```
 
 **Filter to Main Sample**
@@ -871,7 +870,5 @@ Higher land scarcity and agricultural units organized by group were not found to
 apply(sample, 2, function(x) length(which(is.na(x))))
 
 #looking for numbers above 11 for variables in table 1: pct.upto5 (45 NAs)
-#looking for numbers above 23 for variables in table 3: weigh.elev (27 NAs)
-
 ```
 
