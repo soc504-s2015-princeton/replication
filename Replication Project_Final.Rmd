@@ -615,7 +615,6 @@ plot_size.oax <- left_join(distritos, plot_size.oax, by = "muncode") %>%
 theil_prep.oax <- left_join(plot_size.oax, total_units.oax, by = "distrito")
 
 #calculate theil index and turn distritos into muncodes. Not sure about what to do with Inf and NaN values, removed NAs from calculation in order to keep more observations
-
 theil_index.oax <- theil_prep.oax %>%
   mutate(z1 = (area.ha/units)/(area.total/plot.total)) %>% # calculate z1
   group_by(distrito, plot.total) %>%
@@ -789,33 +788,24 @@ extract.negbin <- function(model) {
   return(tr)
   
   }
-
 ```
-
-**We tested the texreg package before knitting and it produced nice tables but when we run it as html r markdown won't read it**
 
 ```{r, warning=FALSE, error=FALSE}
 #Run models and build tables
 
 One.a <- glm.nb(hom.rate ~ pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
 
- summary(One.a)
-
 One.b <- glm.nb(hom.rate ~ log.avg.plot + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
 
- summary(One.b)
-
 One.c <- glm.nb(hom.rate ~ log.pop.surface + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,data = sample) 
- 
- summary(One.c)
 ```
-
 
 ```{r, results='asis'}
-screenreg(list(extract.negbin(One.a), extract.negbin(One.b), extract.negbin(One.c)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Log average plot size", "Log persons per hectare"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 12, 13, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1), groups = list("Plot size and crop yields" = 1:5, "Demographic variables" = 6:8, "Resource deprivation" = 9, "Family structure" = 10, "Access to medical attention" = 11, "Geographical region" = 12)) #inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, star.symbol = "\\*") 
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.b), extract.negbin(One.c)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Log average plot size", "Log persons per hectare"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 12, 13, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1), groups = list("Plot size and crop yields" = 1:5, "Demographic variables" = 6:8, "Resource deprivation" = 9, "Family structure" = 10, "Access to medical attention" = 11, "Geographical region" = 12), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, star.symbol = "\\*")) 
 ```
 
-3 Models for Hypotheses 3 and 4:
+
+*3 Models for Hypotheses 3 and 4:*
 
 ![Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization, and Production of Cash Crops (Hypotheses 3 and 4)](data/Table2a.png)
 
@@ -825,22 +815,17 @@ screenreg(list(extract.negbin(One.a), extract.negbin(One.b), extract.negbin(One.
 
 Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample)
  
-summary(Two.a)
- 
 Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
  
-summary(Two.b)
- 
 Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.subs + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
-
-summary(Two.c)
 ```
 
 ```{r, results='asis'}
-screenreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "% individual production", "% coffee production", "% cattle production", "% subsistence agriculture"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 14, 17, 15, 16, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16))# inline.css = TRUE, doctype = TRUE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE) 
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "% individual production", "% coffee production", "% cattle production", "% subsistence agriculture"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 14, 17, 15, 16, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = TRUE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE)) 
 ```
 
-1 Model for Hypothesis 5: 
+
+*1 Model for Hypothesis 5:* 
 
 ![Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypotheses 5)](data/Table3a.png)
 
@@ -848,15 +833,13 @@ screenreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.
 
 ```{r, warning=FALSE, error=FALSE}
 Three <- glm.nb(hom.rate ~ weigh.elev + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
-
-summary(Three)
 ```
 
 ```{r, results='asis'}
-screenreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1), groups = list("Local topography" = 1, "Collective ownership" = 2:3, "Organization of agricultural production" = 4:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16))# inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, star.symbol = "\\*") 
+gsub("\n[[:space:]]","", htmlreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1), groups = list("Local topography" = 1, "Collective ownership" = 2:3, "Organization of agricultural production" = 4:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, star.symbol = "\\*")) 
 ```
 
-**Conclusions**
+*Conclusions*
 
 Higher land scarcity and agricultural units organized by group were not found to be associated with higher homicide rates, but unequal distribution of land and high percentages of communal and ejido land were associated with higher homicide rates, as were higher rates of coffee and cattle production. Finally, remote mountainous municipalities that were isolated from state institutions had higher homicide rates.
 
