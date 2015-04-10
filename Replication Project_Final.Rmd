@@ -397,11 +397,21 @@ df.oax <- filter(df, muncode %in% 20001:20570)
 
 **Calculate all Variables in Main Dataframe**
 ```{r, warning=FALSE, error=FALSE}
-#create variables with proportion of people living in towns of less than 2500, proportion
-#of indigenous speakers and proportion of illiteracy
+#manually enter data for municipality that didn't match due to strange naming
+df.main$ejidal[1391] <- 32476.75
+df.main$comunal[1391] <- 0
+df.main$private[1391] <- 61536.30
+df.main$total_area[1391] <- 94338.15
+df.main$subs_units[1391] <- 386
+df.main$corn.tons[1391] <- 1523.39
+df.main$corn.ha[1391] <- 1608.75
+df.main$total.cattle.units[1391] <- 718
+df.main$total_units[1391] <- 1761
+
+#create all calculated variables
 df.main <- df.main %>%
   mutate(prop.less.2500 = pop.less.2500/total.pop, pct.indi = (indi/total.pop) * 100, 
-         no.lit.rate = no.literacy/total.pop, 
+         no.lit.rate = (no.literacy/total.pop) * 100, 
          docs.per.10k = (doctors/total.pop) * 10000, 
          pct.fem.house = (fem.house/total.house) * 100,
          pct.young = (young.total/total.pop) * 100,
@@ -421,6 +431,7 @@ df.main <- df.main %>%
 
 df.main$log.corn.yield <- gsub("NaN", "0", df.main$log.corn.yield)
 df.main$log.corn.yield <- gsub("-Inf", "0", df.main$log.corn.yield)
+df.main$pct.coffee[is.na(df.main$pct.coffee)] <- 0
 ```
 
 **Compute Theil Index**
@@ -486,7 +497,7 @@ censo.2 <- tbl_df(censo90) %>%
   select(state = entidad, mun, twn = loc, total.pop = p_total) %>%
   mutate(muncode = (state * 1000)+mun) %>%
   filter(muncode > 1000) %>%
-  filter(twn != 0 & twn != 9998 & twn != 9999) # filter undeterminde town data
+  filter(twn != 0 & twn != 9998 & twn != 9999) # filter undeterminded town data
 
 ##join population and elevation by muncode and town
 pop_elev <- left_join(censo.2, elev, by = c("muncode", "twn"))
@@ -543,12 +554,18 @@ df.oax$pop.less.2500[is.na(df.oax$pop.less.2500)] <- 0
 oaxaca.dist <- left_join(distritos, df.oax, by = "muncode") 
 oaxaca.dist <-filter(oaxaca.dist, !(is.na(name))) 
 
+#fixing entries for a town that didn't match due to strange naming
+oaxaca.dist$ejidal[156] <- 0
+oaxaca.dist$comunal[156] <- 0
+oaxaca.dist$private[156] <- 399.35
+oaxaca.dist$total_area[156] <- 399.35
+
 #calculate the rest of the variables, create new municipality codes to correspond with districts
 oaxaca.dist <- oaxaca.dist  %>% 
   group_by(distrito) %>% 
   summarise(pop.less.2500 = sum(pop.less.2500), total.pop = sum(total.pop), prop.less.2500 = pop.less.2500/total.pop,
             indi = sum(indi), pct.indi = (indi/total.pop) * 100, 
-            no.literacy = sum(no.literacy), no.lit.rate = no.literacy/total.pop,
+            no.literacy = sum(no.literacy), no.lit.rate = (no.literacy/total.pop) * 100,
             sqkm = sum(sqkm), log.pop.dens = log10(total.pop/sqkm), 
             doctors = sum(doctors), docs.per.10k = (doctors/total.pop)*10000, 
             fem.house = sum(fem.house), total.house = sum(total.house), pct.fem.house = (fem.house/total.house) * 100,
@@ -565,6 +582,8 @@ oaxaca.dist <- oaxaca.dist  %>%
             plot.total = sum(plot.total), units.to5 = sum(units.to5), pct.upto5 = (units.to5/plot.total) * 100, area.total = sum(area.total), log.avg.plot = log10(area.total/plot.total)) %>%
   select(-no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -total.cattle.units, -subs_units, -total_units, -corn.tons, -corn.ha) %>%
   mutate(muncode = distrito + 20000)
+
+oaxaca.dist$pct.coffee[is.na(oaxaca.dist$pct.coffee)] <- 0
 
 ## ADDING SD ELEVATION WEIGHTED BY POPULATION TO OAXACA
 
@@ -650,6 +669,9 @@ sample <- rbind(sample.main, sample.oax)
 
 #fix log corn yield, which was somehow coded as a character string
 sample$log.corn.yield <- as.numeric(sample$log.corn.yield)
+
+#round homicide rate to whole number, so appropriate for negative binomial regression
+sample$hom.rate <- round(sample$hom.rate, digits = 0)
 ```
 
 **Visualizing Homicide Rates and Variation in Altitude in Mexican Municipalities**
@@ -843,4 +865,13 @@ screenreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negat
 Higher land scarcity and agricultural units organized by group were not found to be associated with higher homicide rates, but unequal distribution of land and high percentages of communal and ejido land were associated with higher homicide rates, as were higher rates of coffee and cattle production. Finally, remote mountainous municipalities that were isolated from state institutions had higher homicide rates.
 
 *In the end, we were unable to replicate Villarreal's results. We have examined our code and cannot find an explanation for this result in the way we produced the replication. We have two ideas as to why this may have happened: (1) As Matt noted in his feedback, it became clear to us in prepping the data for the replication that Villarreal made many hidden choices in his analysis--primarily when it came to selecting the census fields to use in his analysis (i.e. the census contained many very similar fields and it was clearly a judgement call as to which one to use for which variable in the analysis), and in deciding how to deal with missing data or situations in which computing rates or other calculated variables produced undefined values. Because there was no documentation as to the particular fields Villarreal incorporated into his analysis or how he handled missing data, our choices in dealing with the above issues may have diverged from his methods, which could be the source of the discrepancies in our results. (2) It may be that the data Villarreal received from the Mexican government is different than the data we received. Data files may have been updated or changed in the intervening years, something we have no way to confirm or reject, or the data may have been packaged differently, depending on the way in which he accessed it. As one of our next steps in investigating why this discrepancy occurred, we plan to send our replication attempt to Villarreal and ask for his feedback.*
+
+```{r}
+#identifying sample size problem
+apply(sample, 2, function(x) length(which(is.na(x))))
+
+#looking for numbers above 11 for variables in table 1: pct.upto5 (45 NAs)
+#looking for numbers above 23 for variables in table 3: weigh.elev (27 NAs)
+
+```
 
