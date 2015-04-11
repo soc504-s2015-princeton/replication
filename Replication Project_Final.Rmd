@@ -321,8 +321,9 @@ agr_var$name <- correct_mun(agr_var$name,
                             errors$agricola1991, errors$censo1990)
 
 #join main dataframe with agricultural variables
+agr_var[is.na(agr_var)] <- 0
 df <- full_join(agr_var, main, by = "name")
-df[is.na(df)] <- 0
+
 ```
 
 **Theil Index and proportion of plots of 5 HA or less**
@@ -399,16 +400,6 @@ df.oax <- filter(df, muncode %in% 20001:20570)
 
 **Calculate all Variables in Main Dataframe**
 ```{r, warning=FALSE, error=FALSE}
-# #manually enter data for municipality that didn't match due to strange naming
-# df.main$ejidal[1391] <- 32476.75
-# df.main$comunal[1391] <- 0
-# df.main$private[1391] <- 61536.30
-# df.main$total_area[1391] <- 94338.15
-# df.main$subs_units[1391] <- 386
-# df.main$corn.tons[1391] <- 1523.39
-# df.main$corn.ha[1391] <- 1608.75
-# df.main$total.cattle.units[1391] <- 718
-# df.main$total_units[1391] <- 1761
 
 #create all calculated variables
 df.main <- df.main %>%
@@ -434,6 +425,7 @@ df.main <- df.main %>%
 df.main$log.corn.yield <- gsub("NaN", "0", df.main$log.corn.yield)
 df.main$log.corn.yield <- gsub("-Inf", "0", df.main$log.corn.yield)
 df.main$pct.coffee[is.na(df.main$pct.coffee)] <- 0
+df.main$log.pop.surface <- gsub("-Inf", "0", df.main$log.pop.surface)
 ```
 
 **Compute Theil Index**
@@ -665,11 +657,13 @@ sample.main <- sample.main %>%
 sample.oax <- sample.oax %>%
   select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, theil, log.avg.plot, weigh.elev)
 
-sample <- rbind(sample.main, sample.oax) 
+sample <- rbind(sample.main, sample.oax)
+
 
 #fix log corn yield, which was somehow coded as a character string
 sample$log.corn.yield <- as.numeric(sample$log.corn.yield)
-
+sample$log.pop.surface[512] <- 0
+sample$log.pop.surface <- as.numeric(sample$log.pop.surface)
 #round homicide rate to whole number, so appropriate for negative binomial regression
 sample$hom.rate <- round(sample$hom.rate, digits = 0)
 ```
@@ -694,7 +688,7 @@ gpclibPermit()
 
 #map.data <- rbind(main.for.map, oax.for.map)
 # 
-#map.dbf <-read.dbf("data/maps/old_municipios1995-distritos.dbf")
+# map.dbf <-read.dbf("data/maps/municipios1995-distritos.dbf")
 # #map.dbf <- map.dbf %>%
 #    #mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
 #    #       CVE_ENT = as.numeric(as.character(CVE_ENT)),
@@ -724,9 +718,9 @@ map_geom <- fortify(map.shp, region = "muncode")
 
 map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
 
-map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
+map_geom$hom_breaks <- cut(map_geom$hom.rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
 
-map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
+map_geom$elev_breaks <- cut(map_geom$sd.elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
 
 ```
 
@@ -803,7 +797,7 @@ One.c <- glm.nb(hom.rate ~ log.pop.surface + theil + log.corn.yield + log.pop.de
 ```
 
 ```{r, results='asis'}
-gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.b), extract.negbin(One.c)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Log average plot size", "Log persons per hectare"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 12, 13, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1), groups = list("Plot size and crop yields" = 1:5, "Demographic variables" = 6:8, "Resource deprivation" = 9, "Family structure" = 10, "Access to medical attention" = 11, "Geographical region" = 12), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, star.symbol = "\\*")) 
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.b), extract.negbin(One.c)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Log average plot size", "Log persons per hectare"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 12, 13, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1), groups = list("Plot size and crop yields" = 1:5, "Demographic variables" = 6:8, "Resource deprivation" = 9, "Family structure" = 10, "Access to medical attention" = 11, "Geographical region" = 12), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
 ```
 
 
@@ -823,7 +817,7 @@ Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.subs + pct.coffee + pct.cattle
 ```
 
 ```{r, results='asis'}
-gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "% individual production", "% coffee production", "% cattle production", "% subsistence agriculture"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 14, 17, 15, 16, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = TRUE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE)) 
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "% individual production", "% coffee production", "% cattle production", "% subsistence agriculture"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 14, 17, 15, 16, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = TRUE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, digits = 4, center = FALSE)) 
 ```
 
 
@@ -838,7 +832,7 @@ Three <- glm.nb(hom.rate ~ weigh.elev + pct.ej + pct.com + pct.individual + pct.
 ```
 
 ```{r, results='asis'}
-gsub("\n[[:space:]]","", htmlreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1), groups = list("Local topography" = 1, "Collective ownership" = 2:3, "Organization of agricultural production" = 4:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, star.symbol = "\\*")) 
+gsub("\n[[:space:]]","", htmlreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1), groups = list("Local topography" = 1, "Collective ownership" = 2:3, "Organization of agricultural production" = 4:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
 ```
 
 *Conclusions*
