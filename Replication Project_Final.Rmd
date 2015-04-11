@@ -51,12 +51,13 @@ censo90 <- read.table("data/censo_1990_37_var.txt", header = TRUE, sep = "\t", e
 #create table with variables of interest and population
 censo.1 <- tbl_df(censo90) %>%
   filter(mun !=0 ) %>%
-  select(state = entidad, mun, twn = loc, total.pop = p_total, no.literacy = analfbet,
-         n_hab_esp, habla_esp, state_name = nom_ent, mun_name = nom_mun) %>%
+  select(state = entidad, mun, twn = loc, total.pop = p_total, no.literacy1 = analfbet,
+         no.literacy2 = pob_no_l, n_hab_esp, habla_esp, state_name = nom_ent, mun_name = nom_mun) %>%
   mutate(indi = as.numeric(as.character(n_hab_esp)) + as.numeric(as.character(habla_esp)), 
-         muncode = (state * 1000) + mun, no.literacy = as.numeric(as.character(no.literacy))) %>%
+         muncode = (state * 1000) + mun, no.literacy1 = as.numeric(as.character(no.literacy1)), 
+         no.literacy2 = as.numeric(as.character(no.literacy2)), no.literacy = no.literacy1 + no.literacy2) %>%
   filter(muncode > 1000) %>%
-  select(muncode, twn:indi, -state, -mun, -n_hab_esp,-habla_esp)
+  select(muncode, twn:indi, no.literacy, -state, -mun, -no.literacy1:-habla_esp)
 
 #create variable for population in towns of less than 2500 population
 mun.total <- censo.1 %>%
@@ -321,6 +322,7 @@ agr_var$name <- correct_mun(agr_var$name,
 
 #join main dataframe with agricultural variables
 df <- full_join(agr_var, main, by = "name")
+df[is.na(df)] <- 0
 ```
 
 **Theil Index and proportion of plots of 5 HA or less**
@@ -376,7 +378,7 @@ total_units <- plot_size %>%
 
 #create data frame with plots that are 5 HA or less, sum their totals
 plot_upto5 <- plot_size %>%
-  filter(size ==  "HASTA    2 HA." | size == "MAS DE    2 HASTA    5 HA.") %>%
+  filter(size ==  "HASTA    2 HA." | size == "MAS DE    2 HASTA    5 HA.", !is.na(units)) %>%
   group_by(muncode) %>%
   summarise(units.to5 = sum(units)) %>%
   mutate(size = "HASTA 5 HA.")
@@ -397,16 +399,16 @@ df.oax <- filter(df, muncode %in% 20001:20570)
 
 **Calculate all Variables in Main Dataframe**
 ```{r, warning=FALSE, error=FALSE}
-#manually enter data for municipality that didn't match due to strange naming
-df.main$ejidal[1391] <- 32476.75
-df.main$comunal[1391] <- 0
-df.main$private[1391] <- 61536.30
-df.main$total_area[1391] <- 94338.15
-df.main$subs_units[1391] <- 386
-df.main$corn.tons[1391] <- 1523.39
-df.main$corn.ha[1391] <- 1608.75
-df.main$total.cattle.units[1391] <- 718
-df.main$total_units[1391] <- 1761
+# #manually enter data for municipality that didn't match due to strange naming
+# df.main$ejidal[1391] <- 32476.75
+# df.main$comunal[1391] <- 0
+# df.main$private[1391] <- 61536.30
+# df.main$total_area[1391] <- 94338.15
+# df.main$subs_units[1391] <- 386
+# df.main$corn.tons[1391] <- 1523.39
+# df.main$corn.ha[1391] <- 1608.75
+# df.main$total.cattle.units[1391] <- 718
+# df.main$total_units[1391] <- 1761
 
 #create all calculated variables
 df.main <- df.main %>%
@@ -461,7 +463,7 @@ total_units.oax <- filter(total_units, muncode %in% 20001:20570)
 **Elevation**
 ```{r, warning=FALSE, error=FALSE}
 #information does not come directly from the census, but from the catalog of town names from 1990. 
-catalog <-read.dbf("data/cigel_1990_hab.dbf")
+catalog <- read.csv("data/ARCH271.CSV")
 
 
 catalog <- tbl_df(catalog)
@@ -689,59 +691,59 @@ gpclibPermit()
 **Prepare Maps**
 *Using 1995 data because difference between 1995 and 1990 data is negligible*
 ```{r, warning=FALSE, error=FALSE}
+
+#map.data <- rbind(main.for.map, oax.for.map)
 # 
-# map.data <- rbind(main.for.map, oax.for.map)
-# # 
-# #map.dbf <-read.dbf("data/maps/old_municipios1995-distritos.dbf")
-# # #map.dbf <- map.dbf %>%
-# #    #mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
-# #    #       CVE_ENT = as.numeric(as.character(CVE_ENT)),
-# #    #       muncode = (CVE_ENT*1000) + CVE_MUN)
-# #             
-# map.merged <- left_join(map.dbf, map.data, by = "muncode" )
-# # map.merged <- map.merged[order(map.merged$OID), ]
-# # 
-# # #write.dbf(map.dbf, "data/maps/old_municipios1995-distritos.dbf") 
-# write.dbf(map.merged, "data/maps/municipios1995-distritos.dbf")
-# # 
-# # #intervals for color-coding and legend
-# # #classIntervals(map.data$sd.elev, n = 4)
-# # #classIntervals(map.data$hom.rate, n = 4)
-# breaks_hom <- c(0, 15, 45, 75, 15432.1)
-# labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
-# breaks_elev <- c(0, 100, 200, 390, 1040.154)
-# labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
+#map.dbf <-read.dbf("data/maps/old_municipios1995-distritos.dbf")
+# #map.dbf <- map.dbf %>%
+#    #mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
+#    #       CVE_ENT = as.numeric(as.character(CVE_ENT)),
+#    #       muncode = (CVE_ENT*1000) + CVE_MUN)
+#             
+#map.merged <- left_join(map.dbf, map.data, by = "muncode" )
+# map.merged <- map.merged[order(map.merged$OID), ]
 # 
-# #preparing maps
-# map.shp <-  readShapePoly("data/maps/municipios1995-distritos.shp")
+# #write.dbf(map.dbf, "data/maps/old_municipios1995-distritos.dbf") 
+#write.dbf(map.merged, "data/maps/municipios1995-distritos.dbf")
 # 
-# p <- ggplot(map.shp@data, aes(sd_elev, hom_rate))
-# 
-# 
-# map_geom <- fortify(map.shp, region = "muncode")
-# 
-# map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
-# 
-# map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
-# 
-# map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
+# #intervals for color-coding and legend
+# #classIntervals(map.data$sd.elev, n = 4)
+# #classIntervals(map.data$hom.rate, n = 4)
+breaks_hom <- c(0, 15, 45, 75, 15432.1)
+labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
+breaks_elev <- c(0, 100, 200, 390, 1040.154)
+labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
+
+#preparing maps
+map.shp <-  readShapePoly("data/maps/municipios1995-distritos.shp")
+
+p <- ggplot(map.shp@data, aes(sd_elev, hom_rate))
+
+
+map_geom <- fortify(map.shp, region = "muncode")
+
+map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
+
+map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
+
+map_geom$elev_breaks <- cut(map_geom$sd_elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
 
 ```
 
 **Map of Homicide Rate**
 ```{r, warning=FALSE, error=FALSE}
-# Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
-#  labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 1990 - 1992")
+ Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+  labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 1990 - 1992")
 # 
-# Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+ Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
 ```
 
 **Map of Standard Deviation of Elevation**
 ```{r, warning=FALSE, error=FALSE}
-# Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
-#   labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
-# 
-# Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+  labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
+
+Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
 ```
 
 **Results**
