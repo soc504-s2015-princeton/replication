@@ -1,0 +1,434 @@
+---
+title: "Replication Project"
+author: "Andrés Lajous and Leah Reisman"
+date: "March 11, 2015"
+output: html_document
+---
+
+We chose to replicate Andrés Villarreal's 2004 AJS paper, "The Social Ecology of Rural Violence: Land Scarcity, the Organization of Agricultural Production, and the Presence of the State." Applying an ecological theory of crime to the study of rural violence in Mexico, Villarreal attempts explain the fact that rural municipalities have high variation in homicide rates by investigating the effects of land distribution, collective ownership, and the organization of agricultural production on homicide rates. He tests five specific hypotheses: (1) When agricultural land is scarce relative to the number of individuals, there will be more conflict and therefore more homicides; (2) An unequal distribution of land will lead to more violent conflict; (3) When property rights are not well enforced or are contingent, there will be more conflict over lands. For this reason, ejido and communal units will experience more violence; (4) agricultural production systems that involve more commodified relations of production and exchange will be associated with a breakdown of community social cohesion and therefore with more violence, and the introduction of cash crops will lead to greater conflict over resources and control over trade, and consequently to more violence; and (5) remote mountainous areas will have higher rates of violence due to the absence of state institutions.
+
+**Preparing the Dataset for Analysis:**
+
+"The hypotheses [...] are tested using a sample of rural municipalities [counties] in Mexico. [...] The sample of rural municipalities is constructed by selecting all municipalities in which more than 75% of the population lives in towns of less than 2,500 residents. [...] Municipalities belonging to the state of Oaxaca were grouped into 30 districts commonly used for statistical purposes. [...] A total of 697 municipalities (37% of all municipalities in the country) satisfy this criterion and are therefore included in the sample (minus some eliminated due to missing values). [...] The number of homicides are obtained from vital statistics compiled by the Mexican government. [...] In order to smooth out yearly fluctuations, the total number of homicides over a three-year period (1990– 92) is used, and the population at risk is assumed to be three times the municipal population." [...] The variables for land scarcity, collective ownership, and the organization of agricultural production are all drawn from the 1991 Agricultural and Livestock Census [...] 
+
+I measure the scarcity of land for the sample of rural municipalities (hypothesis 1) in three different ways: the percentage of rural production units of five hectares of land or less, the log of the average plot size, and the log of persons per hectare of agricultural land. [...] Because the extent to which small plots of land satisfy the needs of residents will depend on the quality of the land, I introduce the log of maize yields (expressed as tons per hectare) along with each indicator of land scarcity in the regression models. [...] 
+
+The degree of land inequality (hypothesis 2) is measured by adapting an indicator commonly used for income inequality known as Theil’s index. [...] The index of land inequality is given by: T = 1/u_tot * (summation from i=1 to G) *(u_i)z_iln(z_i), where z_i = (s_i/u_i)/(s_tot/u_tot) is the ratio of the average plot size for agricultural units in plot size category i (their entire surface area s_i over the number of units u_tot) and G is the number of plot size categories. [..] The eight plot size categories are less than 2 hectares; 2–5 hectares; 5–20 hectares; 20–50 hectares; 50–100 hectares; 100–1,000 hectares; 1,000–2,500 hectares; and more than 2,500 hectares. 
+
+In order to test the third hypothesis regarding the effect of contingent or not well-enforced property rights (hypothesis 3), I enter the percentage of the rural surface area in each municipality constituted by ejidos and communal units according to the Agricultural and Livestock Census into the regression models. [...]
+
+I measure the impact of the relations of agricultural production (hypothesis 4) using two different indicators. First, I enter the percentage of subsistence agricultural units, defined as those producing only for internal consumption within the household and not for sale in the market. [...] The second measure I use to test the impact of the relations of production is the percentage of agricultural units with individual (as opposed to group) organization of production. [...] Finally, I test the effect of cash crop production on homicidal violence using the percentage of units dedicated to harvesting coffee and raising cattle.
+
+Six control variables are introduced in the regression models [...] First, I introduce the log of the population density as a measure of the degree of public social interaction. [...] The percentage of the population constituted by young males ages 15–29 is included as a measure of the age structure of the population. [...] The ethnic composition of a municipality is accounted for by using the percentage of residents five years of age or older who speak an indigenous language. [...] The illiteracy rate is used as an indicator of resource deprivation. [...] The percentage of female-headed households was also found to be an important predictor of homicide rates
+in previous work and is therefore included in the regressions below.[...] A dummy variable is also introduced in the regression models to control for the municipalities located in the state of Mexico. Although some of these municipalities are technically rural, they are located in the Valley of Mexico in close proximity to Mexico City and tend to have higher homicide rates compared to the rest of the country, even when accounting for basic structural factors. 
+
+Finally, as described above, a measure of the local topography is used to test the effect of access to state institutions on the rate of homicidal violence [the standard deviation of elevation in a municipality]. However, remote rural areas are not only farther from the reach
+of state institutions, they are also farther from medical services. [...] I therefore introduce the number of medical doctors in the municipality per 10,000 residents according to the 1990 census as a predictor of homicide rates in all the regression models.""
+
+*Variables were added to the dataset for analysis in order of the file they came from - i.e. all variables from the standard census dataset first, then variables regarding doctors, female-headed households, and percent young males (which each require special sub-datasets from the census), then elevation data, then population density (which requires map data about the area of municipalities), then homicides. The dummy variable was added last. Data regarding the state of Oaxaca were separated out through this process, as this state counts municipalities differently - each town is counted as its own municipality, which would skew the data. As noted above, Oaxacan municipalities are typically grouped into 30 districts for analysis--we completed this operation after creating the main analytical dataframe, recalculated all variables for the Oaxacan districts, and merged the two dataframes by municipality code. Variables drawn from the Agricultural Census were added next, as they required matching by name instead of municipality code due to the format of the raw data. Again, data from Oaxaca were separated, recalculated and then recombined with the main dataframe.*
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(xlsx)
+library(zoo)
+library(foreign)
+library(tidyr)
+library(gdata)
+library(maptools)
+library(gpclib) 
+library(RColorBrewer)
+library(scales)
+
+
+
+## MUNICIPALITIES, INDIGENOUS-LANGUAGE-SPEAKERS, ILLITERACY
+#load main 1990 censo database from inegi to the town level
+censo90 <- read.table("data/censo_1990_37_var.txt", header = TRUE, sep = "\t", encoding = "latin1")
+
+#create table with variables of interest and population
+censo.1 <- tbl_df(censo90) %>%
+  filter(mun !=0 ) %>%
+  select(state = entidad, mun, twn = loc, total.pop = p_total, no.literacy = analfbet,
+         n_hab_esp, habla_esp, state_name = nom_ent, mun_name = nom_mun) %>%
+  mutate(indi = as.numeric(as.character(n_hab_esp)) + as.numeric(as.character(habla_esp)), 
+         muncode = (state * 1000) + mun, no.literacy = as.numeric(as.character(no.literacy))) %>%
+  filter(muncode > 1000) %>%
+  select(muncode, twn:indi, -state, -mun, -n_hab_esp,-habla_esp)
+
+#create variable for population in towns of less than 2500 population
+mun.total <- censo.1 %>%
+  filter(twn == 0)
+
+less.2500 <- censo.1 %>%
+  filter(twn != 0 & twn != 9998 & twn != 9999, total.pop < 2500) %>%
+  group_by(muncode) %>%
+  summarise (pop.less.2500 = sum(total.pop))
+
+mun.total <- left_join(mun.total, less.2500, by = "muncode")
+
+#change names to capital letters and remove accents
+mun.total$state_name <- toupper(mun.total$state_name)
+mun.total$state_name <- gsub("`|\\'", "", iconv(mun.total$state_name, to="ASCII//TRANSLIT"))
+mun.total$state_name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", mun.total$state_name)
+mun.total$state_name <- gsub("VERACRUZ DE IGNACIO DE LA LLAVE", "VERACRUZ", mun.total$state_name)
+mun.total$state_name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", mun.total$state_name)
+
+#change names to capital letters and remove accents
+mun.total$mun_name <- toupper(mun.total$mun_name)
+mun.total$mun_name <- gsub("`|\\'", "", iconv(mun.total$mun_name, to="ASCII//TRANSLIT"))
+mun.total$mun_name <- gsub("~","", mun.total$mun_name)
+mun.total$mun_name <- gsub("\"","", mun.total$mun_name)
+
+
+##DOCTORS
+#create table with number of doctors by municipality 
+docs <- read.csv(file="data/doctors_censo1990.csv", header=TRUE, skip = 4, encoding = "latin1")
+docs <- tbl_df(docs)
+
+##clean out NAs and others. 
+docs <- docs %>%
+  select(muncode = Clave, total = Total, doctors = Medicina) %>%
+  mutate(doctors = as.numeric(as.character(doctors))) %>%
+  filter(!grepl("996|997", muncode), muncode > 1000)
+
+docs[is.na(docs)] <- 0
+
+##FEMALE HEADED HOUSEHOLDS
+fems <- read.csv(file="data/headhome_censo1990.csv", header=TRUE, skip = 4, encoding = "latin1")
+fems <- tbl_df(fems)
+
+#clean out NAs and others.
+fems <- fems %>%
+  select(muncode = Clave, total.house = Total, fem.house = Mujeres) %>%
+  filter(!grepl("996|997", muncode), muncode > 1000)
+
+fems[is.na(fems)] <- 0
+
+
+##YOUNG MALES
+men <- read.csv(file="data/censo_1990_age.csv", header=FALSE, skip = 7, encoding = "latin1")
+men <- tbl_df(men)
+
+#clean out NAs and others.
+young <- men %>%
+  select(muncode = V1, up19 = V7, up24 = V8, up29 = V9) %>%
+  filter(muncode != "#NAME?") 
+
+#remove commas from data.
+young$muncode <- gsub(" ","",young$muncode)
+young$up19 <- gsub(",","",young$up19)
+young$up24 <- gsub(",","",young$up24)
+young$up29 <- gsub(",","",young$up29)
+
+#create variable with total young men from 15 years old to 29
+young <- young %>%
+  mutate(muncode = as.numeric(as.character(muncode)),
+         up19 = as.numeric(as.character(up19)),
+         up24 = as.numeric(as.character(up24)),
+         up29 = as.numeric(as.character(up29))) %>%
+  filter(!is.na(muncode)) %>%
+  mutate(young.total = up19+up24+up29)
+
+
+##POPULATION DENSITY
+#pull data with municipal area in meters to calculate population density, there is no GIS map, for 1990, oldest one is 1995.
+map1995 <- read.dbf("data/inegi_map1995.DBF")
+map1995 <- tbl_df(map1995)
+
+#area of each municipality in squared kilometers
+area <- map1995 %>%
+  mutate(muncode = paste(CVE_ENT, CVE_MUN, sep =""), sqkm = (AREA/1000^2)) %>%
+  mutate(muncode = as.numeric(as.character(muncode))) %>%
+  select(muncode, sqkm)
+
+
+##HOMICIDES
+homicides <- read.csv(file="data/homicide_1990_2013_INEGI.csv", header=FALSE, skip = 6, encoding = "latin1")
+homicides <- tbl_df(homicides) %>%
+  select(-V3:-V23)
+
+#new column names, default were unreadable
+colnames(homicides) <- c("muncode", "Nombre", "hom.1992", "hom.1991", "hom.1990")
+homicides[is.na(homicides)] <- 0
+
+#clean out NAs and others, sum 1990,1991, 1992
+homicides <- homicides %>%
+  filter(!grepl("996|997|998|991|993|992", muncode), muncode > 1000) %>%
+  mutate(hom.total = hom.1992+ hom.1991 + hom.1990) %>%
+  select(muncode, hom.total)
+
+
+##JOIN, DUMMY VARIABLE, AND FILTER TO MAIN SAMPLE
+#join all new variables to creat the main data frame with control and dependent variables
+main <- left_join(mun.total, area, by = "muncode")
+main <- left_join(main, docs, by = "muncode")
+main <- left_join(main, fems, by = "muncode")
+main <- left_join(main, young, by = "muncode")
+main <- left_join(main, homicides, by = "muncode")
+
+#adding dummy variable for state of Mexico and creating name variable in order to join with agricultural variables dataframe later
+main <- main %>% 
+  mutate(dummy.SOM = as.numeric(muncode %in% 15001:15125)) %>%
+  mutate(name = paste(mun_name, state_name, sep = ", "))
+
+
+##AGRICULTURAL VARIABLES
+#load all the files
+prod_units <- read.csv(file="data/censo_agricola_1991_produnits.csv", header=FALSE, skip = 8, stringsAsFactors = FALSE, encoding = "UTF-8")
+prod_units <- tbl_df(prod_units)
+land <- read.csv(file="data/censo_agricola_1991_land_area.csv", header=FALSE, skip = 8, stringsAsFactors = FALSE, encoding = "UTF-8")
+land <- tbl_df(land)
+subs <- read.csv("data/censo_agricola_1991_autoconsumo.csv", header = FALSE, skip = 11, stringsAsFactors = FALSE, encoding = "UTF-8")
+subs <- tbl_df(subs)
+cattle <- read.csv("data/censo_agricola_1991_cattle.csv", header = FALSE, skip = 10, stringsAsFactors = FALSE, encoding = "UTF-8")
+cattle <- tbl_df(cattle)
+corn <- read.csv("data/censo_agricola_1991_corn.csv", header = FALSE, skip = 6187, nrows = 2426, stringsAsFactors = FALSE, encoding = "UTF-8")
+corn <- tbl_df(corn)
+
+#function that corrects municipality names and creates a new variable with pasted municipality name and state
+naming <- function(df) {
+  df$V3 <- gsub("[[:space:]]", "", df$V3)
+  df$V4 <- gsub("[[:space:]]", "", df$V4)
+  df$V5 <- gsub("[[:space:]]", "", df$V5)
+  df$V6 <- gsub("[[:space:]]", "", df$V6)
+  df$V7 <- gsub("[[:space:]]", "", df$V7)
+  
+  df1 <- df %>%
+    select(state = V1, mun = V2, V3, V4, V5, V6, V7) %>%
+    mutate(state = as.character(state), mun = as.character(mun), 
+           V3 = as.numeric(V3), V4 = as.numeric(V4),
+           V5 = as.numeric(V5), V6 = as.numeric(V6)  , V7 = as.numeric(V7))           
+  
+  df1$state[df1$state == ""] <- NA
+  df1$mun[df1$mun == ""] <- NA
+  df1$mun <- gsub("\x84", "N",df1$mun) 
+  df1$state <- na.locf(df1$state)
+  
+  df1 <- df1 %>%
+    separate(mun, into = c("mun", "art"), sep = ",", extra = "merge") %>%
+    trim(df1$art) %>% 
+    mutate(mun = ifelse(!is.na(art), paste(art, mun, sep = " "), mun)) %>%
+    filter(!is.na(mun)) %>%
+    mutate(name = paste(mun, state, sep = ", ")) %>%
+    select(-art)   
+}
+
+#run the naming function for each file
+prod_units <- naming(prod_units)
+land <- naming(land)
+subs <- naming(subs)
+cattle <- naming(cattle)
+corn <- naming(corn)
+
+#get total producton units
+prod_units[is.na(prod_units)] <- 0
+prod.units1 <- prod_units %>%
+  select(name, total_prod_units = V3) %>%
+  mutate(total_prod_units = as.numeric((total_prod_units)))
+
+#tabulate land surface area according to property type
+land[is.na(land)] <- 0
+land$name <- gsub("[^[:alnum:][:blank:],.()-///' ]", "N", land$name)
+
+land1 <- land %>%
+  select(name, total_area = V3, ejidal = V4, 
+         comunal = V5,  private = V6) %>%
+  mutate(total_area = as.numeric((total_area)), 
+         ejidal = as.numeric(ejidal), 
+         comunal = as.numeric(comunal), 
+         private = as.numeric(private))
+
+#calculate units dedicate to subsistance farming
+subs[is.na(subs)] <- 0
+
+subs1 <- subs %>%
+  select(name, total_units = V5, subs_units = V6) %>%
+  mutate(total_units = as.numeric((total_units)), 
+         subs_units = as.numeric(subs_units))
+
+#units with cattle needs to be calculated from total production units.
+cattle[is.na(cattle)] <- 0
+
+cattle1 <- cattle %>%
+  select(name, total.cattle.units = V5) 
+
+#maize yields in ton per hectare
+corn$V5[is.na(corn$V5)] <- 0
+corn$V6[is.na(corn$V6)] <- 0
+corn$V7[is.na(corn$V7)] <- 0
+
+corn1 <- corn %>%
+  select(name, corn.ha = V5, corn.tons = V7) 
+
+#join agricultural variables 
+agr_var <- left_join(prod.units1, land1, by = "name")
+agr_var <- left_join(agr_var, subs1, by = "name" )
+agr_var <- left_join(agr_var, corn1, by = "name" )
+agr_var <- left_join(agr_var, cattle1, by = "name" )
+
+#join main dataframe with agricultural variables
+
+## load dataframes with common mistakes in municipality names
+errors <- read.csv("data/mun_name_errors.csv", header = TRUE)
+
+
+## function correct_mun to change the of municipalities to match main data frame and agricultural variables 
+correct_mun <- function(x, pattern, replace) {
+  for (i in seq_along(pattern))
+    x <- gsub(pattern[i], replace[i], x, fixed = TRUE)
+  x
+}
+
+agr_var$name <- correct_mun(agr_var$name, 
+                            errors$agricola1991, errors$censo1990)
+
+df <- full_join(agr_var, main, by = "name")
+
+#separate Oaxaca and rest of states for variable calculation
+df.main <- filter(df, !(muncode %in% 20001:20570))
+df.oax <- filter(df, muncode %in% 20001:20570)
+
+
+#CALCULATING VARIABLES IN MAIN DATAFRAME
+
+#create variables with proportion of people living in towns of less than 2500, proportion
+#of indigenous speakers and proportion of illiteracy
+df.main <- df.main %>%
+  mutate(prop.less.2500 = pop.less.2500/total.pop, pct.indi = (indi/total.pop) * 100, 
+         no.lit.rate = no.literacy/total.pop, 
+         docs.per.10k = (doctors/total.pop) * 10000, 
+         pct.fem.house = (fem.house/total.house) * 100,
+         pct.young = (young.total/total.pop) * 100,
+         log.pop.dens = log(total.pop/sqkm),
+         hom.rate = hom.total/(total.pop*3) * 100000,
+         pct.ej = (ejidal/total_area) * 100, 
+         pct.com = (comunal/total_area) * 100, 
+         pct.individual = (private/total_area) * 100,
+         pct.subs = (subs_units/total_units) * 100, 
+         log.corn.yield = log(corn.tons/corn.ha), 
+         pct.cattle = (total.cattle.units/total_prod_units) * 100) %>%
+  select(-twn, -no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -up19, -up24, -up29, -total, -total_prod_units, -total_units, -corn.tons, -corn.ha, -total.cattle.units, -subs_units)
+
+df.main$log.corn.yield <- gsub("NaN", "0", df.main$log.corn.yield)
+df.main$log.corn.yield <- gsub("-Inf", "0", df.main$log.corn.yield)
+
+##ELEVATION
+#no information in the 1990 census, used the 1995 Conteo. 
+conteo.95 <- read.table("data/conteo_1995_37_var.txt", sep = "\t")
+conteo.95 <- tbl_df(conteo.95)
+
+#select variables create muncodes, filter NAs
+elev <- conteo.95 %>%
+  select(state = V1, mun = V3, elev = V9) %>%
+  mutate(muncode = (state*1000) + mun) 
+
+elev[elev == ""] <- NA
+elev <- elev %>%
+  filter(!is.na(elev)) %>%
+  select(-state, -mun)
+
+#separate out oaxaca 
+elev.oax <- filter(elev, muncode %in% 20001:20570) 
+elev <- filter(elev, !(muncode %in% 20001:20570))
+
+#table with standard deviation for elevation among towns in a municipality
+elev <- elev  %>% 
+  group_by(muncode) %>%
+  summarise(sd.elev = sd(elev))
+
+elev$sd.elev[is.na(elev$sd.elev)] <- 0
+df.main <- left_join(df.main, elev, by = "muncode") 
+
+#store version of homicide rate for maps
+homs.for.map <- select(df.main, hom.rate, muncode)
+
+#filter out all municipalities with more than 75% of pop living in towns of less than 2500 pop 
+sample.main <- filter(df.main, prop.less.2500 > .75)
+
+
+##OAXACA
+#load table with conversion table between municipalities and distritos for Oaxaca
+oaxaca.distritos <- read.xlsx("data/oaxaca_30distritos_2002.xls", 3, startRow = 5, endRow = 690, encoding = "latin1")
+
+oaxaca.distritos <- tbl_df(oaxaca.distritos) 
+
+#create table with municipality codes 
+distritos <- oaxaca.distritos  %>%
+  select(mun = CLAVE) %>%
+  filter(!is.na(mun)) %>%
+  mutate(mun = as.numeric(as.character(mun)), 
+         muncode = (mun + 20000))
+
+#create column that assigns districts to each muncode
+distritos$distrito = rep(NA, nrow(distritos))
+distritos$distrito[is.na(distritos$mun)] <- c(1:30)
+distritos$distrito <- na.locf(distritos$distrito)
+
+#filter out NA rows with district names
+distritos <- distritos %>%
+  filter(!is.na(mun))
+
+#join district table with oaxaca population table by district and generate new muncodes with district number. filter out new municipalies(districts) with more than 75% of population living in towns of less than 2500.
+df.oax$pop.less.2500[is.na(df.oax$pop.less.2500)] <- 0
+
+oaxaca.dist <- left_join(distritos, df.oax, by = "muncode") 
+oaxaca.dist <-filter(oaxaca.dist, !(is.na(name))) #REMOVE THIS ONCE MATCHING IS FIXED
+
+#calculate the rest of the variables, create new municipality codes to correspond with districts
+oaxaca.dist <- oaxaca.dist  %>% #NOT WORKING YET, I THINK BECAUSE NAs
+  group_by(distrito) %>% 
+  summarise(pop.less.2500 = sum(pop.less.2500), total.pop = sum(total.pop), prop.less.2500 = pop.less.2500/total.pop,
+            indi = sum(indi), pct.indi = (indi/total.pop) * 100, 
+            no.literacy = sum(no.literacy), no.lit.rate = no.literacy/total.pop,
+            sqkm = sum(sqkm), log.pop.dens = log(total.pop/sqkm), 
+            doctors = sum(doctors), docs.per.10k = (doctors/total.pop)*10000, 
+            fem.house = sum(fem.house), total.house = sum(total.house), pct.fem.house = (fem.house/total.house) * 100,
+            young.total = sum(young.total), pct.young = (young.total/total.pop) * 100, 
+            hom.total = sum(hom.total), hom.rate = hom.total/(total.pop*3)*100000,
+            ejidal = sum(ejidal), total_area = sum(total_area), pct.ej = (ejidal/total_area) * 100,
+            comunal = sum(comunal), pct.com = (comunal/total_area) * 100,
+            private = sum(private), pct.individual = (private/total_area) * 100,
+            total.cattle.units = sum(total.cattle.units), total_prod_units = sum(total_prod_units), pct.cattle = (total.cattle.units/total_prod_units) * 100,
+            subs_units = sum(subs_units), total_units = sum(total_units), pct.subs = (subs_units/total_units) * 100,
+            corn.tons = sum(corn.tons), corn.ha = sum(corn.ha), log.corn.yield = log(corn.tons/corn.ha)) %>%
+  select(-no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -total.cattle.units, -subs_units, -total_units, -corn.tons, -corn.ha) %>%
+  mutate(muncode = distrito + 20000)
+
+#calculate SD of elevation for map and dataframe, and state of mexico dummy variable and add them to the oaxaca dataset
+elev.map.oax <- left_join(distritos, elev.oax, by = "muncode") %>%
+  group_by(distrito) %>%
+  mutate(sd.elev = sd(elev)) %>%
+  select(muncode, sd.elev)
+elev.map.oax <- elev.map.oax[!duplicated(elev.map.oax), ]
+
+elev.oax <- left_join(distritos, elev.oax, by = "muncode") %>%
+  group_by(distrito) %>%
+  summarise(sd.elev = sd(elev)) %>%
+  mutate(muncode = distrito + 20000, dummy.SOM = 0) %>%
+  select(muncode, sd.elev, dummy.SOM)
+
+oaxaca.dist <- left_join(oaxaca.dist, elev.oax, by = "muncode")
+
+#filter to oaxaca sample 
+sample.oax <- oaxaca.dist %>%  
+  filter(prop.less.2500 > .75) 
+  
+#create a table to keep at hand showing which of the municipalities  is in which distrito
+oaxaca.mun <- df.oax %>%
+  left_join(distritos, df.oax, by = "muncode") %>%
+  select(muncode, pop.less.2500, total.pop, distrito) 
+
+
+##ORDER AND JOIN OAXACA AND MAIN DATAFRAMES
+sample.main <- sample.main %>%
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev)
+
+sample.oax <- sample.oax %>%
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev)
+
+sample <- rbind(sample.main, sample.oax) 
+
+
+```
+
