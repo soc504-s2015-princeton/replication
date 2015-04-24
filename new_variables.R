@@ -177,7 +177,7 @@ mun_total <- left_join(mun_total, total_pop, by = "muncode")
 
 
 prod_units <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", sheet= "Cuadro 1", skip = 8,
-                         col_names = FALSE)
+                         col_names = FALSE) ## ignore crazy numbers in console
 
 ## all this needs to be turned into a function, it identifies if the name is of a state or a municipality 
 ## if there are two leading white spaces, if there is only one white space it is a state and moved to a new column
