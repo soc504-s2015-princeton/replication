@@ -25,6 +25,7 @@ library(scales)
 library(SDMTools)
 library(readxl)
 library(readr)
+library(gdata)
 ```
 
 **Adding New Variables**
@@ -160,49 +161,69 @@ total.main <- left_join(total.main, less_2500, by = "muncode")
 **Agricultural Variables**
 ```{r, warning=FALSE, error=FALSE}
 # agricultural variables --------------------------------------------------
-prod_units <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", sheet= "Cuadro 1", skip = 8,
+prod_units <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", sheet= "Cuadro 1", skip = 12,
                          col_names = FALSE) ## ignore crazy numbers in console
 
-## all this needs to be turned into a function, it identifies if the name is of a state or a municipality 
-## if there are two leading white spaces, if there is only one white space it is a state and moved to a new column
-prod_units1 <- prod_units %>%
-  select(mun.name = X1, total.units = X2, surface = X3) %>%
-  filter(!is.na(mun.name), row_number() <= 2482, grepl("^\\s+|\\s+$", mun.name)) %>%
+#function to identify if the name is of a state or a municipality 
+#if there are two leading white spaces, if there is only one white space it is a state and moved to a new column
+
+naming <- function(df) {
+  
+df <- df %>%
+  mutate(mun.name = X1) %>%
+  select(-X1) %>%
+  filter(!is.na(mun.name), row_number() <= 2482, grepl("^\\s+|\\s+$", mun.name)) %>% #not sure if row # needs to change
   mutate(state.name = ifelse(grepl("^\\s\\s+|\\s+$", mun.name), NA, mun.name))
 
-prod_units1$state.name <- na.locf(prod_units1$state.name) ## subsistutes NAs with state names
-
-prod_units1 <- prod_units1 %>%
+df$state.name <- na.locf(df$state.name) ## subsistutes NAs with state names
+df <- df %>%
   filter(grepl("^\\s\\s+|\\s+$", mun.name)) # filters out state names in original column
 
-
 ## standardizes state names
-prod_units1$state.name <- gsub("`|\\'", "", iconv(prod_units1$state.name, to="ASCII//TRANSLIT"))
-prod_units1$state.name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", prod_units1$state.name)
-prod_units1$state.name <- gsub("VERACRUZ LLAVE", "VERACRUZ", prod_units1$state.name)
-prod_units1$state.name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", prod_units1$state.name)
+df$state.name <- gsub("`|\\'", "", iconv(df$state.name, to="ASCII//TRANSLIT"))
+df$state.name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", df$state.name)
+df$state.name <- gsub("VERACRUZ LLAVE", "VERACRUZ", df$state.name)
+df$state.name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", df$state.name)
   
 ## removes accents and tilde in municipal names
-prod_units1$mun.name<- gsub("`|\\'", "", iconv(prod_units1$mun.name, to="ASCII//TRANSLIT"))
-prod_units1$mun.name <- gsub("~","", prod_units1$mun.name)
-prod_units1$mun.name <- gsub("¨","", prod_units1$mun.name)
-prod_units1$mun.name <- gsub("~","", prod_units1$mun.name)
-prod_units1$mun.name <- gsub("\"","", prod_units1$mun.name)
+df$mun.name<- gsub("`|\\'", "", iconv(df$mun.name, to="ASCII//TRANSLIT"))
+df$mun.name <- gsub("~","", df$mun.name)
+df$mun.name <- gsub("¨","", df$mun.name)
+df$mun.name <- gsub("~","", df$mun.name)
+df$mun.name <- gsub("\"","", df$mun.name)
 
-
-
-prod_units1 <- prod_units1 %>%
+df <- df %>%
   mutate(name = paste(mun.name, state.name, sep = ","))
 
-library(gdata)
+df$name <- trim(df$name)
+df$mun.name <- trim(df$mun.name)
+df$state.name <- trim(df$state.name)
+df <- as.data.frame(df)
 
-prod_units1$name <- trim(prod_units1$name)
+}
+
+prod_units <- naming(prod_units)
+prod_units <- prod_units %>%
+  select(name, mun.name, state.name, total.units = X2, surface = X3)
+  
 
 ## test if census and agricultural variables can be joined
 
 sample_main <- full_join(mun_total, prod_units1, by = "name")
 
-## 30 don't match due to differences in spelling. 
+
+## 30 don't match due to differences in spelling. function to correct errors. THIS IS ALMOST DONE
+#errors <- read.csv("data/mun_name_errors.csv", header = TRUE)
+
+
+#function correct_mun to change the of municipalities to match main data frame and agricultural variables 
+#correct_mun <- function(x, pattern, replace) {
+#  for (i in seq_along(pattern))
+#    x <- gsub(pattern[i], replace[i], x, fixed = TRUE)
+#  x
+#}
+
+
 ```
 
 **Calculating variables for main data frame and filtering to main sample**
