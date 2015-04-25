@@ -110,6 +110,12 @@ total_pop <- census %>%
   select(-state, -mun, -P8A14AN, -P15YM_AN, -P_15A17_M, -P_18A24_M) %>%
   filter(twn != "0", twn != "9999", twn != "9998")
 
+total_pop$total.house[total_pop$total.house == "*"] <- NA
+total_pop$total.house <- as.numeric(as.character(total_pop$total.house))
+
+total_pop <- total_pop %>%
+  filter(!is.na(total.house)) #I think this shrinks the sample size a good amount - the data disclosure laws seem to have affected this too
+
 ## all names have to be fixed so that they can be joined by name to the agr variables which don't have muncode.
 total_pop$mun.name <- gsub("\xed", "i", total_pop$mun.name)
 total_pop$mun.name <- gsub("\xfa", "u", total_pop$mun.name)
@@ -135,6 +141,11 @@ total_pop$state.name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", total_pop$state
 
 total_pop <- total_pop %>%
   mutate(name = paste(mun.name, state.name, sep = ", "))
+
+#separate out version to match naming errors
+muns <- total_pop %>%
+  group_by(muncode, name) %>%
+  summarise(total.pop = sum(pop))
 
 #subset out Oaxaca data
 total.main <- filter(total_pop, !(muncode %in% 20001:20570))
@@ -205,24 +216,19 @@ df <- as.data.frame(df)
 prod_units <- naming(prod_units)
 prod_units <- prod_units %>%
   select(name, mun.name, state.name, total.units = X2, surface = X3)
-  
-
-## test if census and agricultural variables can be joined
-
-sample_main <- full_join(mun_total, prod_units1, by = "name")
-
-
-## 30 don't match due to differences in spelling. function to correct errors. THIS IS ALMOST DONE
-#errors <- read.csv("data/mun_name_errors.csv", header = TRUE)
-
 
 #function correct_mun to change the of municipalities to match main data frame and agricultural variables 
-#correct_mun <- function(x, pattern, replace) {
-#  for (i in seq_along(pattern))
-#    x <- gsub(pattern[i], replace[i], x, fixed = TRUE)
-#  x
-#}
+#DO THIS FOR DATAFRAME OF AGRICULTURAL VARIABLES AFTER SUBSETTING OAXACA
+errors <- read.csv("data/errors2007.csv", header = TRUE)
 
+correct_mun <- function(x, pattern, replace) {
+  for (i in seq_along(pattern))
+    x <- gsub(pattern[i], replace[i], x, fixed = TRUE)
+  x
+}
+
+
+#prod_units$name <- correct_mun(prod_units$name, errors$agricola2007, errors$censo2010)
 
 ```
 
@@ -252,6 +258,14 @@ sample_main <- full_join(mun_total, prod_units1, by = "name")
 **CONVERTING AND CALCULATING DATA FOR OAXACA**
 
 ```{r}
+#correct errors in mun name for oaxaca agricultural variables, join this with total.oax
+oax.errors <- read.csv("data/errors2007oax.csv", header = TRUE, stringsAsFactors = FALSE)
+#fix name for a town that didn't match
+oax.errors$censo2010[4] <- "SAN JUAN NUMI, OAXACA"
+#do this also in the agricultural variables df
+
+oax.df <- left_join(total.oax, #oax.ag.var, by = "name")
+
 #oaxaca distritos 2010 --------------------------------------------------
 
 oaxaca.distritos <- read.xlsx("data/oaxaca_distritos_2010.xls", 3, 
