@@ -8,7 +8,7 @@ output: html_document
 We chose to replicate Andrés Villarreal's 2004 AJS paper, "The Social Ecology of Rural Violence: Land Scarcity, the Organization of Agricultural Production, and the Presence of the State." Applying an ecological theory of crime to the study of rural violence in Mexico, Villarreal attempts explain the fact that rural municipalities have high variation in homicide rates by investigating the effects of land distribution, collective ownership, and the organization of agricultural production on homicide rates. He tests five specific hypotheses: (1) When agricultural land is scarce relative to the number of individuals, there will be more conflict and therefore more homicides; (2) An unequal distribution of land will lead to more violent conflict; (3) When property rights are not well enforced or are contingent, there will be more conflict over lands. For this reason, ejido and communal units will experience more violence; (4) agricultural production systems that involve more commodified relations of production and exchange will be associated with a breakdown of community social cohesion and therefore with more violence, and the introduction of cash crops will lead to greater conflict over resources and control over trade, and consequently to more violence; and (5) remote mountainous areas will have higher rates of violence due to the absence of state institutions.
 
 We were unable to replicate Villarreal's findings, due in part to changes in Mexican data disclosure laws. For our extension of Villarreal's paper, we decided to update his analysis with newer (2007) data -- his original analysis was conducted using 1991 data. In doing so, we decided to remove the variables for which we identified data issues (The Thiel Index, Percent of Plots 5 Hectares or Less, and Log of Average Plot Size), as well as one variable for which 2007 data is not available (Percent Subsistence Agriculture). We correspondingly decided to include several new variables in the analysis, including a different indicator of land inequality to replace the Thiel index (the Gini Index), a new indicator of state presence not used by Villarreal (Number of Policemen per 1,000 people) and a new control variable -- the Human Development Index (HDI). We hope that these changes and additions will produce a valid analysis that we can compare to Villrreal's findings.
-#take out illiteracy
+
 
 ```{r, warning=FALSE, error=FALSE}
 library(ggplot2)
@@ -227,9 +227,8 @@ correct_mun <- function(x, pattern, replace) {
   x
 }
 
-
-#prod_units$name <- correct_mun(prod_units$name, errors$agricola2007, errors$censo2010)
-
+#ag.var.main$name <- correct_mun(ag.var.main$name, errors$agricola2007, errors$censo2010)
+#main.df <- left_join(total.main, ag.var.main, by = "name")
 ```
 
 **Calculating variables for main data frame and filtering to main sample**
@@ -251,25 +250,43 @@ correct_mun <- function(x, pattern, replace) {
 #         log.pop.surface = log10(total.pop/total_area)) %>%
 #  select(-twn, -no.literacy, -indi, -pop.less.2500, -fem.house, -total.house, -young.males, -sqkm, -hom_total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -corn.ha, -total.cattle.units, - total.coffee.units)
 
-#filter to main sample
+#Add dummy variable for State of Mexico, filter to main sample
+#df.main <- df.main %>%
+#  mutate(dummy.SOM = as.numeric(muncode %in% 15001:15125))
+#  filter(prop.less.2500 > .75)
 #take out illiteracy? 
 ```
 
 **CONVERTING AND CALCULATING DATA FOR OAXACA**
 
 ```{r}
+#subsetting elevation data because needs to be handled separately, then adding rest of non-agricultural variables to oaxaca dataset
+oax.elev <- total.oax %>%
+  select(name, muncode, elev, pop)
+total.oax <- total.oax %>%
+  select(-elev) %>%
+  group_by(muncode, name) %>%
+  summarise(total.pop = sum(pop),illiteracy = sum(illiteracy), indi = sum(indi), young.males = sum(young.males), 
+            fem.house = sum(fem.house), total.house = sum(total.house))
+
+total.oax <- left_join(total.oax, doctors, by = "muncode")
+total.oax <- left_join(total.oax, HDI, by = "muncode")
+total.oax <- left_join(total.oax, homicides, by = "muncode")
+total.oax <- left_join(total.oax, police, by = "muncode")
+total.oax <- left_join(total.oax, poor, by = "muncode")     
+total.oax <- left_join(total.oax, less_2500, by = "muncode")
+
 #correct errors in mun name for oaxaca agricultural variables, join this with total.oax
 oax.errors <- read.csv("data/errors2007oax.csv", header = TRUE, stringsAsFactors = FALSE)
 #fix name for a town that didn't match
-oax.errors$censo2010[4] <- "SAN JUAN NUMI, OAXACA"
-#do this also in the agricultural variables df
+oax.errors$censo2010[4] <- "SAN JUAN NUMI, OAXACA" #DO THIS ALSO WITH OAXACA AGR VAR DF
 
-oax.df <- left_join(total.oax, #oax.ag.var, by = "name")
+#combine census and agricultural dataframes
+#oax.ag.var$name <- correct_mun(oax.ag.var$name, errors$agricola2007, errors$censo2010)
+#oax.df <- left_join(total.oax, oax.ag.var, by = "name")
 
-#oaxaca distritos 2010 --------------------------------------------------
-
-oaxaca.distritos <- read.xlsx("data/oaxaca_distritos_2010.xls", 3, 
-                              startRow = 6, endRow = 685, encoding = "latin1")
+#oaxaca distritos 2010
+oaxaca.distritos <- read.xlsx("data/oaxaca_distritos_2010.xls", 3, startRow = 6, endRow = 685, encoding = "latin1")
 oaxaca.distritos <- tbl_df(oaxaca.distritos) 
 
 #create table with municipality codes 
@@ -291,14 +308,13 @@ distritos <- distritos %>%
 
 ```{r, warning=FALSE, echo=FALSE}
 #join district table with oaxaca population table by district and generate new muncodes with district number. filter out new municipalies(districts) with more than 75% of population living in towns of less than 2500. 
-#NEED TO UPDATE THIS
-df.oax$pop.less.2500[is.na(df.oax$pop.less.2500)] <- 0
+oax.df$pop.less.2500[is.na(oax.df$pop.less.2500)] <- 0
 
-oaxaca.d <- left_join(distritos, df.oax, by = "muncode") 
+oaxaca.d <- left_join(distritos, oax.df, by = "muncode") 
 oaxaca.d <-filter(oaxaca.d, !(is.na(name))
 
-#prepping code for oaxaca data
-oaxaca.d <- oaxaca.d  %>% #NEED TO ADD NEW VARIABLES
+#calculate variables for Oaxaca
+oaxaca.d <- oaxaca.d  %>% 
   group_by(distrito) %>% 
   summarise(pop.less.2500 = sum(pop.less.2500), total.pop = sum(total.pop), prop.less.2500 = pop.less.2500/total.pop,
             indi = sum(indi), pct.indi = (indi/total.pop) * 100, 
@@ -314,27 +330,29 @@ oaxaca.d <- oaxaca.d  %>% #NEED TO ADD NEW VARIABLES
             private = sum(private), pct.individual = (private/total_area) * 100,
             total.cattle.units = sum(total.cattle.units), total_prod_units = sum(total_prod_units), pct.cattle = (total.cattle.units/total_prod_units) * 100,
             corn.tons = sum(corn.tons), corn.ha = sum(corn.ha), log.corn.yield = log10(corn.tons/corn.ha),
-            total.coffee.units = sum(total.coffee.units), pct.coffee = (total.coffee.units/total_prod_units) * 100) %>%
+            total.coffee.units = sum(total.coffee.units), pct.coffee = (total.coffee.units/total_prod_units) * 100, 
+            pol1k = sum(pol1k)) %>%
   select(-no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -total.cattle.units, -corn.tons, -corn.ha) %>%
   mutate(muncode = distrito + 20000)
 
 oaxaca.dist$pct.coffee[is.na(oaxaca.dist$pct.coffee)] <- 0
+ #do we have a square kilometers area variable so we can calculate population density?  
+
 ```
 
 **Adding Weighted Variables for Oaxaca**
 
 ```{r, warning=FALSE, error=FALSE}
 
-##UPDATE/TAILOR THIS
 ## SD ELEVATION WEIGHTED BY POPULATION FOR OAXACA
 
 ## join population and elevation data frame with distritos in oaxaca 
-pop_elev.dis <- left_join(pop_elev.oax, distritos, by = "muncode")
+pop_elev.dis <- left_join(oax.elev, distritos, by = "muncode")
 
 ## calculate sd elevation weighted by population grouped by distrito, and a dummy variable for the state of mexico
 weigh_elev.oax <- pop_elev.dis %>% 
   group_by(distrito) %>% 
-  summarise(weigh.elev = wt.sd(elev, total.pop)) %>% # use SDMTools to calculate weighted sd
+  summarise(weigh.elev = wt.sd(elev, pop)) %>% # use SDMTools to calculate weighted sd
   mutate(muncode = 20000 + distrito, dummy.SOM = 0) %>%
   select(-distrito)
 
@@ -342,9 +360,9 @@ weigh_elev.oax <- pop_elev.dis %>%
 oaxaca.dist <- left_join(oaxaca.d, weigh_elev.oax, by = "muncode")
 
 #calculate weighted SD of elevation for map
-elev.map.oax <- left_join(distritos, elev.oax, by = "muncode") %>%
+elev.map.oax <- left_join(distritos, oax.elev, by = "muncode") %>%
   group_by(distrito) %>%
-  weigh.elev = wt.sd(elev, total.pop)) %>% 
+  mutate(weigh.elev = wt.sd(elev, pop)) %>% 
   select(muncode, weigh.elev)
 
 elev.map.oax <- elev.map.oax[!duplicated(elev.map.oax), ]
