@@ -7,8 +7,8 @@ output: html_document
 
 We chose to replicate Andrés Villarreal's 2004 AJS paper, "The Social Ecology of Rural Violence: Land Scarcity, the Organization of Agricultural Production, and the Presence of the State." Applying an ecological theory of crime to the study of rural violence in Mexico, Villarreal attempts explain the fact that rural municipalities have high variation in homicide rates by investigating the effects of land distribution, collective ownership, and the organization of agricultural production on homicide rates. He tests five specific hypotheses: (1) When agricultural land is scarce relative to the number of individuals, there will be more conflict and therefore more homicides; (2) An unequal distribution of land will lead to more violent conflict; (3) When property rights are not well enforced or are contingent, there will be more conflict over lands. For this reason, ejido and communal units will experience more violence; (4) agricultural production systems that involve more commodified relations of production and exchange will be associated with a breakdown of community social cohesion and therefore with more violence, and the introduction of cash crops will lead to greater conflict over resources and control over trade, and consequently to more violence; and (5) remote mountainous areas will have higher rates of violence due to the absence of state institutions.
 
-We were unable to replicate Villarreal's findings, due in part to changes in Mexican data disclosure laws. For our extension of Villarreal's paper, we decided to update his analysis with newer (2007) data -- his original analysis was conducted using 1991 data. In doing so, we decided to remove the variables for which we identified data issues (The Thiel Index, Percent of Plots 5 Hectares or Less, and Log of Average Plot Size), as well as one variable for which 2007 data is not available (Percent Subsistence Agriculture). We correspondingly decided to include several new variables in the analysis, including a different indicator of land inequality to replace the Thiel index (the Gini Index), new indicators of state presence not used by Villarreal (Number of Policemen per 100,000 people, Property Taxes per Capita) and a new control variable -- the Human Development Index (HDI). We hope that these changes and additions will produce a valid analysis that we can compare to Villrreal's findings.
-
+We were unable to replicate Villarreal's findings, due in part to changes in Mexican data disclosure laws. For our extension of Villarreal's paper, we decided to update his analysis with newer (2007) data -- his original analysis was conducted using 1991 data. In doing so, we decided to remove the variables for which we identified data issues (The Thiel Index, Percent of Plots 5 Hectares or Less, and Log of Average Plot Size), as well as one variable for which 2007 data is not available (Percent Subsistence Agriculture). We correspondingly decided to include several new variables in the analysis, including a different indicator of land inequality to replace the Thiel index (the Gini Index), a new indicator of state presence not used by Villarreal (Number of Policemen per 1,000 people) and a new control variable -- the Human Development Index (HDI). We hope that these changes and additions will produce a valid analysis that we can compare to Villrreal's findings.
+#take out illiteracy
 
 ```{r, warning=FALSE, error=FALSE}
 library(ggplot2)
@@ -23,16 +23,17 @@ library(gpclib)
 library(RColorBrewer)
 library(scales)
 library(SDMTools)
+library(readxl)
+library(readr)
 ```
 
+**Adding New Variables**
 ```{r, warning=FALSE, error=FALSE}
 
-# poverty and inequality (2010) --------------------------------------------------
-
+#Poverty and Inequality (2010) 
 
 ##load CONEVAL poverty and inequality database
 coneval <- read_csv("data/3.3 Concentrado, indicadores de pobreza por municipio.csv", skip = 6, col_names = FALSE)
-
 
 ##create table with muncode and percent in poverty, in extreme poverty and gini index 
 poor <- coneval %>%
@@ -40,9 +41,7 @@ poor <- coneval %>%
   select(muncode = X3, pct.poor = X6, 
          pct.extpoor = X10, gini = X45) 
 
-
 # Human development index (2010, per capita GNP, schooling, health) ------------
-
 HDI <- read_csv("data/HDI_2010_UNDP.csv", skip = 3, 
                 col_names = c("state", "mun", "Entidad",  "Municipio",  "school.level",
                               "expected.school",	"GNP.pc", 	"child.mort",	"education.index",
@@ -51,25 +50,26 @@ HDI <- HDI %>%
   mutate(muncode = state*1000 + mun) %>%
   select(muncode, HDI)
 
-
-# doctors per 1000 pop ----------------------------------------------------
-
-doctors <- read_csv("data/doctors_2005_2010.csv", skip = 2, n_max = 2456)
-
-doctors <- doctors %>%
-  select(muncode = Clave, docs = `2010`)
-
 # police per 1000 pop -----------------------------------------------------
-
 police <- read_csv("data/police_2010.csv", skip = 2, n_max = 2462, 
                    col_names = c("muncode", "state", "mun", "total.pers", "pol100k", "pol1k"))
 
 police <- police %>%
   select(muncode, pol1k) %>%
   mutate(pol1k = ifelse(pol1k == "n. d.", NA, pol1k))
+```
+
+```{r, warning=FALSE, error=FALSE}
+
+# doctors per 10000 pop ----------------------------------------------------
+doctors <- read_csv("data/doctors_2005_2010.csv", skip = 2, n_max = 2456)
+
+doctors <- doctors %>%
+  select(muncode = Clave, docs = `2010`) %>%
+  mutate(docs_10k = docs * 10) %>% 
+  select(-docs) #making it docs per 10K to correspond with Villarreal
 
 # homicides 2006, 2007, 2008 ----------------------------------------------
-
 homicides <- read_csv(file="data/homicide_1990_2013_INEGI.csv", col_names = FALSE, skip = 6)
 
 ## new coloumn names, default were unreadable
@@ -79,8 +79,153 @@ homicides[is.na(homicides)] <- 0
 ##clean out NAs and others, 
 homicides <- homicides %>%
   filter(!grepl("996|997|998|991|993|992", muncode), muncode > 1000) %>%
-  select(muncode, name, `2008`:`2006`)
+  select(muncode, name, `2008`:`2006`) %>%
+  mutate(hom_total = `2006` + `2007` + `2008`) %>%
+  select(-`2006`, -`2007`, -`2008`, -name)
 
+#population less than 2500 people
+less_2500 <- census %>%
+  filter(LOC != 0 & LOC != 9998 & LOC != 9999, POBTOT < 2500) %>%
+  mutate(muncode = ENTIDAD*1000 + MUN) %>%
+  group_by(muncode) %>%
+  summarise(pop.less.2500 = sum(POBTOT))
+
+# census 2010 -------------------------------------------------------------
+census <- read_delim("data/ITER_NALTXT10.TXT", delim = "\t", col_names = TRUE,
+                     col_types = list(P3YM_HLI = col_numeric(), P8A14AN = col_numeric(), 
+                                      P15YM_AN = col_numeric(), HOGJEF_F = col_numeric(),
+                                      P_15A17_M = col_numeric(), P_18A24_M = col_numeric()))
+
+census[is.na(census)] <- 0
+
+## select relevant census variables
+total_pop <- census %>%
+  select(state = ENTIDAD, mun = MUN, mun.name = NOM_MUN, state.name = NOM_ENT, twn = LOC, pop = POBTOT,
+         elev = ALTITUD, indi = P3YM_HLI, P8A14AN, P15YM_AN, fem.house = HOGJEF_F, total.house = TOTHOG,
+         P_15A17_M, P_18A24_M) %>%
+  mutate(muncode = state*1000 + mun,
+         illiteracy = P8A14AN + P15YM_AN, 
+         young.males = P_15A17_M + P_18A24_M) %>% #different categories in 2010 data
+  select(-state, -mun, -P8A14AN, -P15YM_AN, -P_15A17_M, -P_18A24_M) %>%
+  filter(twn != "0", twn != "9999", twn != "9998")
+
+## all names have to be fixed so that they can be joined by name to the agr variables which don't have muncode.
+total_pop$mun.name <- gsub("\xed", "i", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xfa", "u", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xf3", "o", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xe9", "e", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xe1", "a", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xfc\xbe\x98\xb6\x98\xbc", "u", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xc1", "A", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xfc\xbe\x8c\x96\x98\xbc", "n", total_pop$mun.name)
+
+total_pop$state.name <- gsub("\xed", "i", total_pop$state.name)
+total_pop$state.name <- gsub("\xfa", "u", total_pop$state.name)
+total_pop$state.name <- gsub("\xf3", "o", total_pop$state.name)
+total_pop$state.name <- gsub("\xe9", "e", total_pop$state.name)
+total_pop$state.name <- gsub("\xe1", "a", total_pop$state.name)
+
+total_pop$mun.name <- toupper(total_pop$mun.name)
+total_pop$state.name <- toupper(total_pop$state.name)
+
+total_pop$state.name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", total_pop$state.name)
+total_pop$state.name <- gsub("VERACRUZ DE IGNACIO DE LA LLAVE", "VERACRUZ", total_pop$state.name)
+total_pop$state.name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", total_pop$state.name)
+
+total_pop <- total_pop %>%
+  mutate(name = paste(mun.name, state.name, sep = ", "))
+
+#subset out Oaxaca data
+total.main <- filter(total_pop, !(muncode %in% 20001:20570))
+total.oax <- filter(total_pop, muncode %in% 20001:20570)
+
+#calculate weighed sd elevation
+total.main <- total.main %>%   
+  group_by(muncode, mun.name, state.name)  %>%
+  summarise(total.pop = sum(pop), weigh.elev = wt.sd(elev, pop),  sd.elev = sd(elev),
+            illiteracy = sum(illiteracy), indi = sum(indi), young.males = sum(young.males), 
+            fem.house = sum(fem.house), total.house = sum(total.house))
+            
+#add all non-agricultural variables together into total_pop dataframe
+total.main <- left_join(total.main, doctors, by = "muncode")
+total.main <- left_join(total.main, HDI, by = "muncode")
+total.main <- left_join(total.main, homicides, by = "muncode")
+total.main <- left_join(total.main, police, by = "muncode")
+total.main <- left_join(total.main, poor, by = "muncode")     
+total.main <- left_join(total.main, less_2500, by = "muncode")
+ #do we have a square kilometers area variable so we can calculate population density?  
+
+```
+
+**Agricultural Variables**
+```{r, warning=FALSE, error=FALSE}
+# agricultural variables --------------------------------------------------
+prod_units <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", sheet= "Cuadro 1", skip = 8,
+                         col_names = FALSE) ## ignore crazy numbers in console
+
+## all this needs to be turned into a function, it identifies if the name is of a state or a municipality 
+## if there are two leading white spaces, if there is only one white space it is a state and moved to a new column
+prod_units1 <- prod_units %>%
+  select(mun.name = X1, total.units = X2, surface = X3) %>%
+  filter(!is.na(mun.name), row_number() <= 2482, grepl("^\\s+|\\s+$", mun.name)) %>%
+  mutate(state.name = ifelse(grepl("^\\s\\s+|\\s+$", mun.name), NA, mun.name))
+
+prod_units1$state.name <- na.locf(prod_units1$state.name) ## subsistutes NAs with state names
+
+prod_units1 <- prod_units1 %>%
+  filter(grepl("^\\s\\s+|\\s+$", mun.name)) # filters out state names in original column
+
+
+## standardizes state names
+prod_units1$state.name <- gsub("`|\\'", "", iconv(prod_units1$state.name, to="ASCII//TRANSLIT"))
+prod_units1$state.name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", prod_units1$state.name)
+prod_units1$state.name <- gsub("VERACRUZ LLAVE", "VERACRUZ", prod_units1$state.name)
+prod_units1$state.name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", prod_units1$state.name)
+  
+## removes accents and tilde in municipal names
+prod_units1$mun.name<- gsub("`|\\'", "", iconv(prod_units1$mun.name, to="ASCII//TRANSLIT"))
+prod_units1$mun.name <- gsub("~","", prod_units1$mun.name)
+prod_units1$mun.name <- gsub("¨","", prod_units1$mun.name)
+prod_units1$mun.name <- gsub("~","", prod_units1$mun.name)
+prod_units1$mun.name <- gsub("\"","", prod_units1$mun.name)
+
+
+
+prod_units1 <- prod_units1 %>%
+  mutate(name = paste(mun.name, state.name, sep = ","))
+
+library(gdata)
+
+prod_units1$name <- trim(prod_units1$name)
+
+## test if census and agricultural variables can be joined
+
+sample_main <- full_join(mun_total, prod_units1, by = "name")
+
+## 30 don't match due to differences in spelling. 
+```
+
+**Calculating variables for main data frame and filtering to main sample**
+```{r, warning=FALSE, error=FALSE}
+#once this is all done, calculate variables for main df
+#df.main <- df.main %>%
+#  mutate(prop.less.2500 = pop.less.2500/total.pop, pct.indi = (indi/total.pop) * 100, 
+#        no.lit.rate = (no.literacy/total.pop) * 100, 
+#         pct.fem.house = (fem.house/total.house) * 100,
+#         pct.young = (young.males/total.pop) * 100,
+#         log.pop.dens = log10(total.pop/sqkm),
+#         hom.rate = hom_total/(total.pop*3) * 100000,
+#         pct.ej = (ejidal/total_area) * 100, 
+#         pct.com = (comunal/total_area) * 100, 
+#         pct.individual = (private/total_area) * 100,
+#         log.corn.yield = log10(corn.tons/corn.ha), 
+#         pct.cattle = (total.cattle.units/total_prod_units) * 100,
+#         pct.coffee = (total.coffee.units/total_prod_units) * 100,
+#         log.pop.surface = log10(total.pop/total_area)) %>%
+#  select(-twn, -no.literacy, -indi, -pop.less.2500, -fem.house, -total.house, -young.males, -sqkm, -hom_total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -corn.ha, -total.cattle.units, - total.coffee.units)
+
+#filter to main sample
+#take out illiteracy?
 ```
 
 **CONVERTING AND CALCULATING DATA FOR OAXACA**
@@ -171,7 +316,7 @@ elev.map.oax <- elev.map.oax[!duplicated(elev.map.oax), ]
 
 #GINI INDEX
 #calculate population weighted average Gini index for Oaxacan municipalities
-pop_gini <- left_join(#CENSUS WITH TOTAL POP, poor, by = "muncode")
+pop_gini <- left_join(total_pop, poor, by = "muncode")
 pop_gini.dis <- left_join(pop_gini, distritos, by = "muncode")
 
 weigh_gini.oax <- pop_gini.dis %>%
@@ -185,7 +330,7 @@ oaxaca.d <- left_join(oaxaca.d, weigh_gini.oax, by = "muncode")
 
 #HDI
 #calculate population weighted average HDI for Oaxacan municipalities
-pop_hdi <- left_join(#CENSUS WITH TOTAL POP, HDI, by = "muncode")
+pop_hdi <- left_join(total_pop, HDI, by = "muncode")
 pop_hdi.dis <- left_join(pop_hdi, distritos, by = "muncode")
 
 weigh_hdi.oax <- pop_hdi.dis %>%
@@ -198,7 +343,7 @@ weigh_hdi.oax <- pop_hdi.dis %>%
 oaxaca.d <- left_join(oaxaca.d, weigh_hdi.oax, by = "muncode")
 
 #select variables for dataframe used in map for Oaxaca
-oax.for.map <- select(oaxaca.d, muncode, hom.rate, sd.elev) #IS THE FACT THAT THIS IS NOT THE WEIGHED SD OF ELEVATION THE REASON IT DOESNT LOOK QUITE THE SAME?
+oax.for.map <- select(oaxaca.d, muncode, hom.rate, sd.elev) 
 
 #filter to oaxaca sample 
 sample.oax <- oaxaca.d %>%  
