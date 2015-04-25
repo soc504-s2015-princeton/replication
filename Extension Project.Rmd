@@ -225,7 +225,7 @@ sample_main <- full_join(mun_total, prod_units1, by = "name")
 #  select(-twn, -no.literacy, -indi, -pop.less.2500, -fem.house, -total.house, -young.males, -sqkm, -hom_total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -corn.ha, -total.cattle.units, - total.coffee.units)
 
 #filter to main sample
-#take out illiteracy?
+#take out illiteracy? 
 ```
 
 **CONVERTING AND CALCULATING DATA FOR OAXACA**
