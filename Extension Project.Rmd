@@ -84,13 +84,6 @@ homicides <- homicides %>%
   mutate(hom_total = `2006` + `2007` + `2008`) %>%
   select(-`2006`, -`2007`, -`2008`, -name)
 
-#population less than 2500 people
-less_2500 <- census %>%
-  filter(LOC != 0 & LOC != 9998 & LOC != 9999, POBTOT < 2500) %>%
-  mutate(muncode = ENTIDAD*1000 + MUN) %>%
-  group_by(muncode) %>%
-  summarise(pop.less.2500 = sum(POBTOT))
-
 # census 2010 -------------------------------------------------------------
 census <- read_delim("data/ITER_NALTXT10.TXT", delim = "\t", col_names = TRUE,
                      col_types = list(P3YM_HLI = col_numeric(), P8A14AN = col_numeric(), 
@@ -112,6 +105,13 @@ total_pop <- census %>%
 
 total_pop$total.house[total_pop$total.house == "*"] <- NA
 total_pop$total.house <- as.numeric(as.character(total_pop$total.house))
+
+#population less than 2500 people
+less_2500 <- census %>%
+  filter(LOC != 0 & LOC != 9998 & LOC != 9999, POBTOT < 2500) %>%
+  mutate(muncode = ENTIDAD*1000 + MUN) %>%
+  group_by(muncode) %>%
+  summarise(pop.less.2500 = sum(POBTOT))
 
 total_pop <- total_pop %>%
   filter(!is.na(total.house)) #I think this shrinks the sample size a good amount - the data disclosure laws seem to have affected this too
@@ -175,6 +175,11 @@ total.main <- left_join(total.main, less_2500, by = "muncode")
 prod_units <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", sheet= "Cuadro 1", skip = 12,
                          col_names = FALSE) ## ignore crazy numbers in console
 
+property_type <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
+                            sheet= "Cuadro 4", skip = 12, col_names = FALSE) 
+
+
+
 #function to identify if the name is of a state or a municipality 
 #if there are two leading white spaces, if there is only one white space it is a state and moved to a new column
 
@@ -210,12 +215,18 @@ df$name <- trim(df$name)
 df$mun.name <- trim(df$mun.name)
 df$state.name <- trim(df$state.name)
 df <- as.data.frame(df)
-
+df <- tbl_df(df)
 }
 
 prod_units <- naming(prod_units)
 prod_units <- prod_units %>%
   select(name, mun.name, state.name, total.units = X2, surface = X3)
+
+property_type <- naming(property_type)
+property_type <- property_type %>%
+  select(name, mun.name, state.name, ejidal = X3, privada = X5, comunal = X4)
+
+
 
 #function correct_mun to change the of municipalities to match main data frame and agricultural variables 
 #DO THIS FOR DATAFRAME OF AGRICULTURAL VARIABLES AFTER SUBSETTING OAXACA
