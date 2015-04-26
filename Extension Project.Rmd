@@ -104,7 +104,7 @@ total_pop <- census %>%
   select(-state, -mun, -P8A14AN, -P15YM_AN, -P_15A17_M, -P_18A24_M) %>%
   filter(twn != "0", twn != "9999", twn != "9998")
 
-total_pop$total.house[total_pop$total.house == "*"] <- NA
+total_pop$total.house[total_pop$total.house == "*"] <- NA 
 total_pop$total.house <- as.numeric(as.character(total_pop$total.house))
 
 #population less than 2500 people
@@ -116,6 +116,8 @@ less_2500 <- census %>%
 
 total_pop <- total_pop %>%
   filter(!is.na(total.house)) #I think this shrinks the sample size a good amount - the data disclosure laws seem to have affected this too
+
+## why do we need the total.house?
 
 ## all names have to be fixed so that they can be joined by name to the agr variables which don't have muncode.
 total_pop$mun.name <- gsub("\xed", "i", total_pop$mun.name)
@@ -172,6 +174,10 @@ total.main <- left_join(total.main, less_2500, by = "muncode")
 **Adding Updated Agricultural Variables**
 ```{r, warning=FALSE, error=FALSE}
 # agricultural variables --------------------------------------------------
+
+## subsistance farming variable is not available
+
+## total production units
 prod_units <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", sheet= "Cuadro 1", skip = 12,
                          col_names = FALSE) ## ignore crazy numbers in console
 
@@ -180,10 +186,12 @@ prod_units <- prod_units %>%
   mutate(state.name = ifelse(grepl("^\\s\\s+|\\s+$", X1), NA, X1))
 
 
-prod_units$state.name <- na.locf(prod_units1$state.name) ## subsistutes NAs with state names
+prod_units$state.name <- na.locf(prod_units$state.name) ## subsistutes NAs with state names
 
 prod_units <- prod_units %>%
   filter(grepl("^\\s\\s+|\\s+$", X1))
+
+## property type, ejidos, comunal, privada
 
 property_type <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
                             sheet= "Cuadro 4", skip = 12, col_names = FALSE)
@@ -199,7 +207,7 @@ property_type$state.name <- na.locf(property_type$state.name) ## subsistutes NAs
 property_type <- property_type %>%
   filter(grepl("^\\s\\s+|\\s+$", X1))
 
-
+# maize yields
 corn <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
                             sheet= "Cuadro 8", skip = 12, col_names = FALSE) 
 
@@ -218,7 +226,7 @@ corn$state.name <- na.locf(corn$state.name)
 corn <- corn %>%
   filter(grepl("^\\s\\s\\s+|\\s+$", X1), grepl("MAIZ", product)) 
 
-
+## units dedicated to coffee
 coffee <-  read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
                   sheet= "Cuadro 10", skip = 12, col_names = FALSE) 
 
@@ -234,12 +242,12 @@ coffee <- coffee %>%
   mutate(state.name = ifelse(!grepl("^\\s\\s\\s+|\\s+$", X1), X1, NA))
 
 coffee$state.name <- na.locf(coffee$state.name)
-coffee$state.name <- trim(coffee$state.name)
+
 
 coffee <- coffee %>%
   filter(grepl("^\\s\\s\\s+|\\s+$", X1), grepl("CAFE", product)) 
 
-
+## units dedicated to cattle
 cattle <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
                    sheet= "Cuadro 31", skip = 11, col_names = FALSE) 
 
@@ -251,8 +259,6 @@ cattle$state.name <- na.locf(cattle$state.name)
 
 cattle <- cattle %>%
   filter(grepl("^\\s+|\\s+$", X1))
-
-
 
 
 #function to identify if the name is of a state or a municipality. If there are two leading white spaces it is a municipality, if there is only one white space it is a state and moved to a new column
@@ -286,7 +292,7 @@ df <- df %>%
 prod_units <- naming(prod_units)
 
 prod_units <- prod_units %>%
-  select(name, mun.name, state.name, total.units = X2, surface = X3)
+  select(name, mun.name, state.name, total.units = X2, total.surface = X3)
 
 property_type <- naming(property_type)
 
@@ -295,11 +301,25 @@ property_type <- property_type %>%
 
 corn <- naming(corn)
 
+corn <- corn %>%
+  select(name, mun.name, state.name, corn.yields = X6) %>%
+  group_by(name, mun.name, state.name) %>%
+  summarise(corn.yields = sum(corn.yields))
+
 coffee <- naming(coffee)
+
+coffee <- coffee %>%
+  select(name, mun.name, state.name, coffee.units = X2)
 
 cattle <- naming(cattle)
 
+cattle <- cattle %>%
+  select(name, mun.name, state.name, cattle.units = X2)
 
+agr_var <- left_join(prod_units, property_type, by = c("name", "mun.name", "state.name"))
+agr_var <- left_join(agr_var, corn, by = c("name", "mun.name", "state.name"))
+agr_var <- left_join(agr_var, coffee, by = c("name", "mun.name", "state.name"))
+agr_var <- left_join(agr_var, cattle, by = c("name", "mun.name", "state.name"))
 
 #function correct_mun to change the of municipalities to match main data frame and agricultural variables 
 #DO THIS FOR DATAFRAME OF AGRICULTURAL VARIABLES AFTER SUBSETTING OAXACA
