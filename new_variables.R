@@ -76,7 +76,7 @@ distritos$distrito <- na.locf(distritos$distrito)
 distritos <- distritos %>%
   filter(!is.na(mun))
 
-
+write.csv(distritos, "distritos_2010.csv")
 # homicides 2006, 2007, 2008 ----------------------------------------------
 
 homicides <- read_csv(file="data/homicide_1990_2013_INEGI.csv", col_names = FALSE, skip = 6)
@@ -270,6 +270,98 @@ coffee <- coffee%>%
   filter(grepl("^\\s\\s\\s+|\\s+$", X1), grepl("CAFE", product)) 
 
 cattle <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
-                   sheet= "Cuadro 31", skip = 12, col_names = FALSE) 
+                   sheet= "Cuadro 31", skip = 11, col_names = FALSE) 
+
+cattle1 <- cattle %>%
+  filter(row_number() <= 2481) %>%
+  mutate(state.name = ifelse(!grepl("^\\s+|\\s+$", X1), X1, NA))
+
+cattle1$state.name <- na.locf(cattle1$state.name)
+
+cattle1 <- cattle1 %>%
+  filter(grepl("^\\s+|\\s+$", X1))
 
 
+cattle1$X1 <- trim(cattle1$X1)
+
+
+
+
+naming <- function(df) {
+  
+
+  ## standardizes state names
+  df$state.name <- gsub("`|\\'", "", iconv(df$state.name, to="ASCII//TRANSLIT"))
+  df$state.name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", df$state.name)
+  df$state.name <- gsub("VERACRUZ LLAVE", "VERACRUZ", df$state.name)
+  df$state.name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", df$state.name)
+  
+  ## removes accents and tilde in municipal names
+  df$mun.name<- gsub("`|\\'", "", iconv(df$mun.name, to="ASCII//TRANSLIT"))
+  df$mun.name <- gsub("~","", df$mun.name)
+  df$mun.name <- gsub("¨","", df$mun.name)
+  df$mun.name <- gsub("~","", df$mun.name)
+  df$mun.name <- gsub("\"","", df$mun.name)
+  
+  
+  df$mun.name <- trim(df$mun.name)
+  df$state.name <- trim(df$state.name)
+  df <- df %>%
+    mutate(name = paste(mun.name, state.name, sep = ", "))
+  
+}
+
+map2010 <- read.dbf("data/Municipios_2010_5area.dbf")
+map2010 <- tbl_df(map2010)
+
+area <- map2010  %>%
+  mutate(sqkm = (AREA/1000^2)) %>%
+  select(muncode, sqkm)
+
+
+#map.data <- rbind(main.for.map, oax.for.map)
+# 
+# map.dbf <-read.dbf("data/maps/municipios1995-distritos.dbf")
+# #map.dbf <- map.dbf %>%
+#    #mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
+#    #       CVE_ENT = as.numeric(as.character(CVE_ENT)),
+#    #       muncode = (CVE_ENT*1000) + CVE_MUN)
+#             
+#map.merged <- left_join(map.dbf, map.data, by = "muncode" )
+# map.merged <- map.merged[order(map.merged$OID), ]
+# 
+# #write.dbf(map.dbf, "data/maps/old_municipios1995-distritos.dbf") 
+#write.dbf(map.merged, "data/maps/municipios1995-distritos.dbf")
+# 
+# #intervals for color-coding and legend
+# #classIntervals(map.data$sd.elev, n = 4)
+# #classIntervals(map.data$hom.rate, n = 4)
+breaks_hom <- c(0, 15, 45, 75, 15432.1)
+labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
+breaks_elev <- c(0, 100, 200, 390, 1040.154)
+labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
+
+#preparing maps
+map.shp <-  readShapePoly("data/maps/municipios1995-distritos.shp")
+
+p <- ggplot(map.shp@data, aes(sd_elev, hom_rate))
+
+
+map_geom <- fortify(map.shp, region = "muncode")
+
+map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
+
+map_geom$hom_breaks <- cut(map_geom$hom.rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
+
+map_geom$elev_breaks <- cut(map_geom$sd.elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
+
+
+Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+  labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 1990 - 1992")
+# 
+Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+
+Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+  labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
+
+Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
