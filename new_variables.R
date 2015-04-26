@@ -169,6 +169,9 @@ mun_total <- left_join(mun_total, less_2500, by = "muncode") %>%
 
 mun_total <- left_join(mun_total, total_pop, by = "muncode")
 
+mun_total %>%
+  filter(prop.2500 > .75)
+
 ## command to group by muncode, and calculate sd elevation, and sd elevation weighed by pop.
 #
 
@@ -220,3 +223,53 @@ prod_units1$name <- trim(prod_units1$name)
 sample_main <- full_join(mun_total, prod_units1, by = "name")
 
 ## 30 don't match due to differences in spelling. 
+
+
+
+corn <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
+                            sheet= "Cuadro 8", skip = 12, col_names = FALSE) 
+
+corn1 <- corn %>%
+  filter(row_number() <= 12730) %>%
+  mutate(product = ifelse(!grepl("^\\s+|\\s+$", X1), X1, NA))
+
+corn1$product <- na.locf(corn1$product)
+corn1$product <- gsub("`|\\'", "", iconv(corn1$product, to="ASCII//TRANSLIT"))
+
+corn1 <- corn1 %>%
+  filter(grepl("^\\s+|\\s+$", X1)) %>% 
+  mutate(state.name = ifelse(!grepl("^\\s\\s\\s+|\\s+$", X1), X1, NA))
+
+corn1$state.name <- na.locf(corn1$state.name)
+corn1$state.name <- trim(corn1$state.name)
+
+
+
+corn1 <- corn1 %>%
+  filter(grepl("^\\s\\s\\s+|\\s+$", X1), grepl("MAIZ", product)) 
+
+
+coffee <-  read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
+                  sheet= "Cuadro 10", skip = 12, col_names = FALSE) 
+
+coffee <- coffee %>%
+  filter(row_number() <= 10448) %>%
+  mutate(product = ifelse(!grepl("^\\s+|\\s+$", X1), X1, NA))
+
+coffee$product <- na.locf(coffee$product)
+coffee$product <- gsub("`|\\'", "", iconv(coffee$product, to="ASCII//TRANSLIT"))
+
+coffee <- coffee %>%
+  filter(grepl("^\\s+|\\s+$", X1)) %>% 
+  mutate(state.name = ifelse(!grepl("^\\s\\s\\s+|\\s+$", X1), X1, NA))
+
+coffee$state.name <- na.locf(coffee$state.name)
+coffee$state.name <- trim(coffee$state.name)
+
+coffee <- coffee%>%
+  filter(grepl("^\\s\\s\\s+|\\s+$", X1), grepl("CAFE", product)) 
+
+cattle <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
+                   sheet= "Cuadro 31", skip = 12, col_names = FALSE) 
+
+
