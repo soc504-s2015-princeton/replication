@@ -175,53 +175,129 @@ total.main <- left_join(total.main, less_2500, by = "muncode")
 prod_units <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", sheet= "Cuadro 1", skip = 12,
                          col_names = FALSE) ## ignore crazy numbers in console
 
+prod_units <- prod_units %>%
+  filter(!is.na(X1), row_number() <= 2482, grepl("^\\s+|\\s+$", X1)) %>%
+  mutate(state.name = ifelse(grepl("^\\s\\s+|\\s+$", X1), NA, X1))
+
+
+prod_units$state.name <- na.locf(prod_units1$state.name) ## subsistutes NAs with state names
+
+prod_units <- prod_units %>%
+  filter(grepl("^\\s\\s+|\\s+$", X1))
+
 property_type <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
-                            sheet= "Cuadro 4", skip = 12, col_names = FALSE) 
+                            sheet= "Cuadro 4", skip = 12, col_names = FALSE)
+
+
+property_type  <- property_type %>%
+  filter(!is.na(X1), row_number() <= 2482, grepl("^\\s+|\\s+$", X1)) %>%
+  mutate(state.name = ifelse(grepl("^\\s\\s+|\\s+$", X1), NA, X1))
+
+
+property_type$state.name <- na.locf(property_type$state.name) ## subsistutes NAs with state names
+
+property_type <- property_type %>%
+  filter(grepl("^\\s\\s+|\\s+$", X1))
+
+
+corn <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
+                            sheet= "Cuadro 8", skip = 12, col_names = FALSE) 
+
+corn <- corn %>%
+  filter(row_number() <= 12730) %>%
+  mutate(product = ifelse(!grepl("^\\s+|\\s+$", X1), X1, NA))
+
+corn$product <- na.locf(corn$product)
+corn$product <- gsub("`|\\'", "", iconv(corn$product, to="ASCII//TRANSLIT"))
+
+corn <- corn %>%
+  filter(grepl("^\\s+|\\s+$", X1)) %>% 
+  mutate(state.name = ifelse(!grepl("^\\s\\s\\s+|\\s+$", X1), X1, NA))
+corn$state.name <- na.locf(corn$state.name)
+
+corn <- corn %>%
+  filter(grepl("^\\s\\s\\s+|\\s+$", X1), grepl("MAIZ", product)) 
+
+
+coffee <-  read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
+                  sheet= "Cuadro 10", skip = 12, col_names = FALSE) 
+
+coffee <- coffee %>%
+  filter(row_number() <= 10448) %>%
+  mutate(product = ifelse(!grepl("^\\s+|\\s+$", X1), X1, NA))
+
+coffee$product <- na.locf(coffee$product)
+coffee$product <- gsub("`|\\'", "", iconv(coffee$product, to="ASCII//TRANSLIT"))
+
+coffee <- coffee %>%
+  filter(grepl("^\\s+|\\s+$", X1)) %>% 
+  mutate(state.name = ifelse(!grepl("^\\s\\s\\s+|\\s+$", X1), X1, NA))
+
+coffee$state.name <- na.locf(coffee$state.name)
+coffee$state.name <- trim(coffee$state.name)
+
+coffee <- coffee %>%
+  filter(grepl("^\\s\\s\\s+|\\s+$", X1), grepl("CAFE", product)) 
+
+
+cattle <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
+                   sheet= "Cuadro 31", skip = 11, col_names = FALSE) 
+
+cattle <- cattle %>%
+  filter(row_number() <= 2481) %>%
+  mutate(state.name = ifelse(!grepl("^\\s+|\\s+$", X1), X1, NA))
+
+cattle$state.name <- na.locf(cattle$state.name)
+
+cattle <- cattle %>%
+  filter(grepl("^\\s+|\\s+$", X1))
+
+
+
 
 #function to identify if the name is of a state or a municipality. If there are two leading white spaces it is a municipality, if there is only one white space it is a state and moved to a new column
 
 naming <- function(df) {
+
+df <- df %>%
+  rename(mun.name = X1)
+
+  ## standardizes state names
+  df$state.name <- gsub("`|\\'", "", iconv(df$state.name, to="ASCII//TRANSLIT"))
+  df$state.name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", df$state.name)
+  df$state.name <- gsub("VERACRUZ LLAVE", "VERACRUZ", df$state.name)
+  df$state.name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", df$state.name)
   
-df <- df %>%
-  mutate(mun.name = X1) %>%
-  select(-X1) %>%
-  filter(!is.na(mun.name), row_number() <= 2482, grepl("^\\s+|\\s+$", mun.name)) %>% #not sure if row # needs to change
-  mutate(state.name = ifelse(grepl("^\\s\\s+|\\s+$", mun.name), NA, mun.name))
-
-df$state.name <- na.locf(df$state.name) ## subsistutes NAs with state names
-df <- df %>%
-  filter(grepl("^\\s\\s+|\\s+$", mun.name)) # filters out state names in original column
-
-## standardizes state names
-df$state.name <- gsub("`|\\'", "", iconv(df$state.name, to="ASCII//TRANSLIT"))
-df$state.name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", df$state.name)
-df$state.name <- gsub("VERACRUZ LLAVE", "VERACRUZ", df$state.name)
-df$state.name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", df$state.name)
+  ## removes accents and tilde in municipal names
+  df$mun.name<- gsub("`|\\'", "", iconv(df$mun.name, to="ASCII//TRANSLIT"))
+  df$mun.name <- gsub("~","", df$mun.name)
+  df$mun.name <- gsub("¨","", df$mun.name)
+  df$mun.name <- gsub("~","", df$mun.name)
+  df$mun.name <- gsub("\"","", df$mun.name)
   
-## removes accents and tilde in municipal names
-df$mun.name<- gsub("`|\\'", "", iconv(df$mun.name, to="ASCII//TRANSLIT"))
-df$mun.name <- gsub("~","", df$mun.name)
-df$mun.name <- gsub("¨","", df$mun.name)
-df$mun.name <- gsub("~","", df$mun.name)
-df$mun.name <- gsub("\"","", df$mun.name)
-
-df <- df %>%
-  mutate(name = paste(mun.name, state.name, sep = ","))
-
-df$name <- trim(df$name)
-df$mun.name <- trim(df$mun.name)
-df$state.name <- trim(df$state.name)
-df <- as.data.frame(df)
-df <- tbl_df(df)
+  
+  df$mun.name <- trim(df$mun.name)
+  df$state.name <- trim(df$state.name)
+  df <- df %>%
+    mutate(name = paste(mun.name, state.name, sep = ", "))
+  
 }
 
 prod_units <- naming(prod_units)
+
 prod_units <- prod_units %>%
   select(name, mun.name, state.name, total.units = X2, surface = X3)
 
 property_type <- naming(property_type)
+
 property_type <- property_type %>%
   select(name, mun.name, state.name, ejidal = X3, private = X5, comunal = X4)
+
+corn <- naming(corn)
+
+coffee <- naming(coffee)
+
+cattle <- naming(cattle)
 
 
 
