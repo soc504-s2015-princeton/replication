@@ -342,6 +342,16 @@ main.df <- full_join(total.main, agr.var.main, by = "name")
 
 **Calculating variables for main data frame and filtering to main sample**
 ```{r, warning=FALSE, error=FALSE}
+#fix some glitchy variables, filter out NAs
+main.df$pol1k <- as.numeric(as.character(main.df$pol1k))
+main.df$total.coffee.units[is.na(main.df$total.coffee.units)] <- 0
+main.df$total.cattle.units[is.na(main.df$total.cattle.units)] <- 0
+main.df <- main.df %>%
+  filter(!is.na(state.name)) %>%
+  filter(!is.na(pol1k)) %>%
+  filter(!is.na(name)) %>%
+  filter(!is.na(docs_10k))
+
 main.df <- main.df %>%
   mutate(prop.less.2500 = pop.less.2500/total.pop, pct.indi = (indi/total.pop) * 100, 
         no.lit.rate = (illiteracy/total.pop) * 100, 
@@ -355,9 +365,12 @@ main.df <- main.df %>%
          pct.cattle = (total.cattle.units/total.units) * 100,
          pct.coffee = (total.coffee.units/total.units) * 100,
          log.pop.surface = log10(total.pop/surface)) %>%
-  select(-illiteracy, -indi, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -corn.ha, -total.cattle.units, - total.coffee.units, -mun.name, -state.name)
+  select(-indi, -illiteracy, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -corn.ha, -total.cattle.units, -total.coffee.units, -mun.name, -state.name)
+#add log.pop.dens = log10(total.pop/sqkm), log persons per HA?
 
-#add log.pop.dens = log10(total.pop/sqkm)
+main.df$log.corn.yield <- gsub("NA", "0", main.df$log.corn.yield)
+main.df$log.corn.yield <- gsub("-Inf", "0", main.df$log.corn.yield)
+#main.df$log.pop.surface <- gsub("-Inf", "0", main.df$log.pop.surface)
 
 #Add dummy variable for State of Mexico, filter to main sample
 sample.main <- main.df %>%
@@ -451,10 +464,10 @@ oaxaca.d <- oaxaca.d  %>%
             corn.ha = sum(corn.ha), log.corn.yield = log10(corn.tons/corn.ha), 
             total.coffee.units = sum(total.coffee.units), pct.coffee = (total.coffee.units/total.units) * 100, 
             pol1k = sum(pol1k)) %>%
-  select(-illiteracy, -indi, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -total.cattle.units, -corn.tons, -corn.ha) %>%
+  select(-illiteracy, -indi, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -total.cattle.units, -corn.tons, -corn.ha, -total.coffee.units) %>%
   mutate(muncode = distrito + 20000)
 
-# addsqkm = sum(sqkm), log.pop.dens = log10(total.pop/sqkm), 
+# addsqkm = sum(sqkm), log.pop.dens = log10(total.pop/sqkm), log persons per HA?
 ```
 
 **Adding Weighted Variables for Oaxaca**
@@ -545,17 +558,17 @@ sample.oax <- oaxaca.d %>%
 
 #need to add log pop density (log.pop.dens)
 sample.main <- sample.main %>%
-  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI)
+  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev)
 
 sample.oax <- sample.oax %>%
-  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, sd.elev, log.pop.surface,  pct.coffee, gini, pol1k, HDI)
+  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev)
 
 sample <- rbind(sample.main, sample.oax)
 
 
 #fix log corn yield, which was somehow coded as a character string
 sample$log.corn.yield <- as.numeric(sample$log.corn.yield)
-sample$log.pop.surface <- as.numeric(sample$log.pop.surface)
+#sample$log.pop.surface <- as.numeric(sample$log.pop.surface)
 ```
 
 **Results**
