@@ -1,0 +1,642 @@
+---
+title: "Extension of Villarreal Paper"
+author: "Reisman and Lajous"
+date: "April 23, 2015"
+output: html_document
+---
+
+We chose to replicate Andrés Villarreal's 2004 AJS paper, "The Social Ecology of Rural Violence: Land Scarcity, the Organization of Agricultural Production, and the Presence of the State." Applying an ecological theory of crime to the study of rural violence in Mexico, Villarreal attempts explain the fact that rural municipalities have high variation in homicide rates by investigating the effects of land distribution, collective ownership, and the organization of agricultural production on homicide rates. He tests five specific hypotheses: (1) When agricultural land is scarce relative to the number of individuals, there will be more conflict and therefore more homicides; (2) An unequal distribution of land will lead to more violent conflict; (3) When property rights are not well enforced or are contingent, there will be more conflict over lands. For this reason, ejido and communal units will experience more violence; (4) agricultural production systems that involve more commodified relations of production and exchange will be associated with a breakdown of community social cohesion and therefore with more violence, and the introduction of cash crops will lead to greater conflict over resources and control over trade, and consequently to more violence; and (5) remote mountainous areas will have higher rates of violence due to the absence of state institutions.
+
+We were unable to replicate Villarreal's findings, due in part to changes in Mexican data disclosure laws. For our extension of Villarreal's paper, we decided to update his analysis with newer (2007) data -- his original analysis was conducted using 1991 data. In doing so, we decided to remove the variables for which we identified data issues (The Thiel Index, Percent of Plots 5 Hectares or Less, and Log of Average Plot Size), as well as one variable for which 2007 data is not available (Percent Subsistence Agriculture). We correspondingly decided to include several new variables in the analysis, including a different indicator of land inequality to replace the Thiel index (the Gini Index), a new indicator of state presence not used by Villarreal (Number of Policemen per 1,000 people) and a new control variable -- the Human Development Index (HDI). We hope that these changes and additions will produce a valid analysis that we can compare to Villrreal's findings.
+
+
+```{r, results = 'hide', warning=FALSE, error=FALSE}
+library(ggplot2)
+library(dplyr)
+library(xlsx)
+library(zoo)
+library(foreign)
+library(tidyr)
+library(gdata)
+library(maptools)
+library(gpclib) 
+library(RColorBrewer)
+library(scales)
+library(SDMTools)
+library(readxl)
+library(readr)
+library(gdata)
+```
+
+**Adding New Variables**
+```{r, warning=FALSE, error=FALSE}
+
+#Poverty and Inequality (2010) 
+
+##load CONEVAL poverty and inequality database
+coneval <- read_csv("data/3.3 Concentrado, indicadores de pobreza por municipio.csv", skip = 6, col_names = FALSE)
+
+##create table with muncode and percent in poverty, in extreme poverty and gini index 
+poor <- coneval %>%
+  filter(!is.na(X3)) %>%
+  select(muncode = X3, pct.poor = X6, 
+         pct.extpoor = X10, gini = X45) 
+
+# Human development index (2010, per capita GNP, schooling, health) ------------
+HDI <- read_csv("data/HDI_2010_UNDP.csv", skip = 3, 
+                col_names = c("state", "mun", "Entidad",  "Municipio",  "school.level",
+                              "expected.school",	"GNP.pc", 	"child.mort",	"education.index",
+                              "income.index", 	"health.index",	"HDI"))
+HDI <- HDI %>%
+  mutate(muncode = state*1000 + mun) %>%
+  select(muncode, HDI)
+
+# police per 1000 pop -----------------------------------------------------
+police <- read_csv("data/police_2010.csv", skip = 2, n_max = 2462, 
+                   col_names = c("muncode", "state", "mun", "total.pers", "pol100k", "pol1k"))
+
+police <- police %>%
+  select(muncode, pol1k) %>%
+  mutate(pol1k = ifelse(pol1k == "n. d.", NA, pol1k))
+```
+
+**Adding Updated Non-Agricultural Variables**
+```{r, warning=FALSE, error=FALSE}
+
+# doctors per 10000 pop ----------------------------------------------------
+doctors <- read_csv("data/doctors_2005_2010.csv", skip = 2, n_max = 2456)
+
+doctors <- doctors %>%
+  select(muncode = Clave, docs = `2010`) %>%
+  mutate(docs_10k = docs * 10) %>% 
+  select(-docs) #making it docs per 10K to correspond with Villarreal
+
+# homicides 2006, 2007, 2008 ----------------------------------------------
+homicides <- read_csv(file="data/homicide_1990_2013_INEGI.csv", col_names = FALSE, skip = 6)
+
+## new coloumn names, default were unreadable
+colnames(homicides) <- c("muncode", "name", 2013:1990)
+homicides[is.na(homicides)] <- 0
+
+##clean out NAs and others, 
+homicides <- homicides %>%
+  filter(!grepl("996|997|998|991|993|992", muncode), muncode > 1000) %>%
+  select(muncode, name, `2008`:`2006`) %>%
+  mutate(hom_total = `2006` + `2007` + `2008`) %>%
+  select(-`2006`, -`2007`, -`2008`, -name)
+
+# census 2010 -------------------------------------------------------------
+census <- read_delim("data/ITER_NALTXT10.TXT", delim = "\t", col_names = TRUE,
+                     col_types = list(P3YM_HLI = col_numeric(), P8A14AN = col_numeric(), 
+                                      P15YM_AN = col_numeric(), HOGJEF_F = col_numeric(),
+                                      P_15A17_M = col_numeric(), P_18A24_M = col_numeric()))
+
+census[is.na(census)] <- 0
+
+## select relevant census variables
+total_pop <- census %>%
+  select(state = ENTIDAD, mun = MUN, mun.name = NOM_MUN, state.name = NOM_ENT, twn = LOC, pop = POBTOT,
+         elev = ALTITUD, indi = P3YM_HLI, P8A14AN, P15YM_AN, fem.house = HOGJEF_F, total.house = TOTHOG,
+         P_15A17_M, P_18A24_M) %>%
+  mutate(muncode = state*1000 + mun,
+         illiteracy = P8A14AN + P15YM_AN, 
+         young.males = P_15A17_M + P_18A24_M) %>% #different categories in 2010 data
+  select(-state, -mun, -P8A14AN, -P15YM_AN, -P_15A17_M, -P_18A24_M) %>%
+  filter(twn != "0", twn != "9999", twn != "9998")
+
+total_pop$total.house[total_pop$total.house == "*"] <- NA
+total_pop$total.house <- as.numeric(as.character(total_pop$total.house))
+
+#population less than 2500 people
+less_2500 <- census %>%
+  filter(LOC != 0 & LOC != 9998 & LOC != 9999, POBTOT < 2500) %>%
+  mutate(muncode = ENTIDAD*1000 + MUN) %>%
+  group_by(muncode) %>%
+  summarise(pop.less.2500 = sum(POBTOT))
+
+total_pop <- total_pop %>%
+  filter(!is.na(total.house)) #I think this shrinks the sample size a good amount - the data disclosure laws seem to have affected this too
+
+## all names have to be fixed so that they can be joined by name to the agr variables which don't have muncode.
+total_pop$mun.name <- gsub("\xed", "i", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xfa", "u", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xf3", "o", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xe9", "e", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xe1", "a", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xfc\xbe\x98\xb6\x98\xbc", "u", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xc1", "A", total_pop$mun.name)
+total_pop$mun.name <- gsub("\xfc\xbe\x8c\x96\x98\xbc", "n", total_pop$mun.name)
+
+total_pop$state.name <- gsub("\xed", "i", total_pop$state.name)
+total_pop$state.name <- gsub("\xfa", "u", total_pop$state.name)
+total_pop$state.name <- gsub("\xf3", "o", total_pop$state.name)
+total_pop$state.name <- gsub("\xe9", "e", total_pop$state.name)
+total_pop$state.name <- gsub("\xe1", "a", total_pop$state.name)
+
+total_pop$mun.name <- toupper(total_pop$mun.name)
+total_pop$state.name <- toupper(total_pop$state.name)
+
+total_pop$state.name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", total_pop$state.name)
+total_pop$state.name <- gsub("VERACRUZ DE IGNACIO DE LA LLAVE", "VERACRUZ", total_pop$state.name)
+total_pop$state.name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", total_pop$state.name)
+
+total_pop <- total_pop %>%
+  mutate(name = paste(mun.name, state.name, sep = ", "))
+
+#separate out version to match naming errors
+muns <- total_pop %>%
+  group_by(muncode, name) %>%
+  summarise(total.pop = sum(pop))
+
+#subset out Oaxaca data
+total.main <- filter(total_pop, !(muncode %in% 20001:20570))
+total.oax <- filter(total_pop, muncode %in% 20001:20570)
+
+#calculate weighed sd elevation
+total.main <- total.main %>%   
+  group_by(muncode, name)  %>%
+  summarise(total.pop = sum(pop), weigh.elev = wt.sd(elev, pop),  sd.elev = sd(elev),
+            illiteracy = sum(illiteracy), indi = sum(indi), young.males = sum(young.males), 
+            fem.house = sum(fem.house), total.house = sum(total.house))
+            
+#add all non-agricultural variables together into total_pop dataframe
+total.main <- left_join(total.main, doctors, by = "muncode")
+total.main <- left_join(total.main, HDI, by = "muncode")
+total.main <- left_join(total.main, homicides, by = "muncode")
+total.main <- left_join(total.main, police, by = "muncode")
+total.main <- left_join(total.main, poor, by = "muncode")     
+total.main <- left_join(total.main, less_2500, by = "muncode")
+ #do we have a square kilometers area variable so we can calculate population density?  
+```
+
+**Adding Updated Agricultural Variables**
+```{r, warning=FALSE, error=FALSE}
+# agricultural variables --------------------------------------------------
+
+#production units
+prod_units <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", sheet= "Cuadro 1", skip = 12,
+                         col_names = FALSE) ## ignore crazy numbers in console
+
+prod_units <- prod_units %>%
+  filter(!is.na(X1), row_number() <= 2482, grepl("^\\s+|\\s+$", X1)) %>%
+  mutate(state.name = ifelse(grepl("^\\s\\s+|\\s+$", X1), NA, X1))
+
+prod_units$state.name <- na.locf(prod_units$state.name) ## subsistutes NAs with state names
+
+prod_units <- prod_units %>%
+  filter(grepl("^\\s\\s+|\\s+$", X1))
+
+#property type
+property_type <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
+                            sheet= "Cuadro 4", skip = 12, col_names = FALSE)
+
+property_type  <- property_type %>%
+  filter(!is.na(X1), row_number() <= 2482, grepl("^\\s+|\\s+$", X1)) %>%
+  mutate(state.name = ifelse(grepl("^\\s\\s+|\\s+$", X1), NA, X1))
+
+property_type$state.name <- na.locf(property_type$state.name) ## subsistutes NAs with state names
+
+property_type <- property_type %>%
+  filter(grepl("^\\s\\s+|\\s+$", X1))
+
+#corn
+corn <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
+                            sheet= "Cuadro 8", skip = 12, col_names = FALSE) 
+
+corn <- corn %>%
+  filter(row_number() <= 12730) %>%
+  mutate(product = ifelse(!grepl("^\\s+|\\s+$", X1), X1, NA))
+
+corn$product <- na.locf(corn$product)
+corn$product <- gsub("`|\\'", "", iconv(corn$product, to="ASCII//TRANSLIT"))
+
+corn <- corn %>%
+  filter(grepl("^\\s+|\\s+$", X1)) %>% 
+  mutate(state.name = ifelse(!grepl("^\\s\\s\\s+|\\s+$", X1), X1, NA))
+
+corn$state.name <- na.locf(corn$state.name)
+
+corn <- corn %>%
+  filter(grepl("^\\s\\s\\s+|\\s+$", X1), grepl("MAIZ", product)) 
+
+#coffee
+coffee <-  read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
+                  sheet= "Cuadro 10", skip = 12, col_names = FALSE) 
+
+coffee <- coffee %>%
+  filter(row_number() <= 10448) %>%
+  mutate(product = ifelse(!grepl("^\\s+|\\s+$", X1), X1, NA))
+
+coffee$product <- na.locf(coffee$product)
+coffee$product <- gsub("`|\\'", "", iconv(coffee$product, to="ASCII//TRANSLIT"))
+
+coffee <- coffee %>%
+  filter(grepl("^\\s+|\\s+$", X1)) %>% 
+  mutate(state.name = ifelse(!grepl("^\\s\\s\\s+|\\s+$", X1), X1, NA))
+
+coffee$state.name <- na.locf(coffee$state.name)
+coffee$state.name <- trim(coffee$state.name)
+
+coffee <- coffee %>%
+  filter(grepl("^\\s\\s\\s+|\\s+$", X1), grepl("CAFE", product)) 
+
+#cattle
+cattle <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", 
+                   sheet= "Cuadro 31", skip = 11, col_names = FALSE) 
+
+cattle <- cattle %>%
+  filter(row_number() <= 2481) %>%
+  mutate(state.name = X1) %>%
+  select(-X1) 
+
+cattle$state.name <- na.locf(cattle$state.name)
+
+cattle <- cattle %>%
+  filter(!is.na(X2))
+
+colnames(cattle) <- c("X1", "X2", "X3", "X4", "X5", "X6", "state.name")
+
+#function to identify if the name is of a state or a municipality. If there are two leading white spaces it is a municipality, if there is only one white space it is a state and moved to a new column
+
+naming <- function(df) {
+
+df <- df %>%
+  rename(mun.name = X1)
+
+  ## standardizes state names
+  df$state.name <- gsub("`|\\'", "", iconv(df$state.name, to="ASCII//TRANSLIT"))
+  df$state.name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", df$state.name)
+  df$state.name <- gsub("VERACRUZ LLAVE", "VERACRUZ", df$state.name)
+  df$state.name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", df$state.name)
+  
+  ## removes accents and tilde in municipal names
+  df$mun.name<- gsub("`|\\'", "", iconv(df$mun.name, to="ASCII//TRANSLIT"))
+  df$mun.name <- gsub("~","", df$mun.name)
+  df$mun.name <- gsub("¨","", df$mun.name)
+  df$mun.name <- gsub("~","", df$mun.name)
+  df$mun.name <- gsub("\"","", df$mun.name)
+  
+  
+  df$mun.name <- trim(df$mun.name)
+  df$state.name <- trim(df$state.name)
+  df <- df %>%
+    mutate(name = paste(mun.name, state.name, sep = ", "))
+  
+}
+
+prod_units <- naming(prod_units)
+
+prod_units <- prod_units %>%
+  select(name, mun.name, state.name, total.units = X2, surface = X3)
+
+property_type <- naming(property_type)
+
+property_type <- property_type %>%
+  select(name, ejidal = X3, private = X5, comunal = X4)
+
+corn <- naming(corn)
+
+corn <- corn %>%
+  group_by(name) %>%
+  summarise(corn.tons = sum(X6), corn.ha = sum(X3))
+
+coffee <- naming(coffee)
+coffee$X2 <- as.numeric(as.character(coffee$X2))
+
+coffee <- coffee %>% 
+  group_by(name) %>%
+  summarise(total.coffee.units = sum(X2)) #lots of NAs here, from stars
+
+cattle <- naming(cattle)
+
+cattle <- cattle %>%
+  group_by(name) %>%
+  summarise(total.cattle.units = sum(X2))
+
+#join all agricultural variables and subset oaxaca data
+agr.var <- left_join(prod_units, property_type, by = "name")
+agr.var <- left_join(agr.var, corn, by = "name")
+agr.var <- left_join(agr.var, coffee, by = "name")
+agr.var <- left_join(agr.var, cattle, by = "name")
+
+agr.var.oax <- agr.var %>%
+  filter(state.name == "OAXACA")
+agr.var.main <- agr.var %>%
+  filter(state.name != "OAXACA")
+
+#function correct_mun to change the of municipalities to match main data frame and agricultural variables 
+errors <- read.csv("data/errors2007.csv", header = TRUE)
+
+correct_mun <- function(x, pattern, replace) {
+  for (i in seq_along(pattern))
+    x <- gsub(pattern[i], replace[i], x, fixed = TRUE)
+  x
+}
+
+agr.var.main$name <- correct_mun(agr.var.main$name, errors$agricola2007, errors$censo2010)
+
+#join agricultural and census variables to main data frame
+main.df <- full_join(total.main, agr.var.main, by = "name")
+
+```
+
+**Calculating variables for main data frame and filtering to main sample**
+```{r, warning=FALSE, error=FALSE}
+main.df <- main.df %>%
+  mutate(prop.less.2500 = pop.less.2500/total.pop, pct.indi = (indi/total.pop) * 100, 
+        no.lit.rate = (illiteracy/total.pop) * 100, 
+         pct.fem.house = (fem.house/total.house) * 100,
+         pct.young = (young.males/total.pop) * 100,
+         hom.rate = hom_total/(total.pop*3) * 100000,
+         pct.ej = (ejidal/surface) * 100, 
+         pct.com = (comunal/surface) * 100, 
+         pct.individual = (private/surface) * 100,
+         log.corn.yield = log10(corn.tons/corn.ha), 
+         pct.cattle = (total.cattle.units/total.units) * 100,
+         pct.coffee = (total.coffee.units/total.units) * 100,
+         log.pop.surface = log10(total.pop/surface)) %>%
+  select(-illiteracy, -indi, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -corn.ha, -total.cattle.units, - total.coffee.units, -mun.name, -state.name)
+
+#add log.pop.dens = log10(total.pop/sqkm)
+
+#Add dummy variable for State of Mexico, filter to main sample
+sample.main <- main.df %>%
+  mutate(dummy.SOM = as.numeric(muncode %in% 15001:15125)) %>%
+  filter(prop.less.2500 > .75) %>%
+  select(-name, -sd.elev, -total.pop, -pct.poor, -pct.extpoor)
+```
+
+**CONVERTING AND CALCULATING DATA FOR OAXACA**
+```{r}
+#subsetting elevation data because needs to be handled separately, then adding rest of non-agricultural variables to oaxaca dataset
+oax.elev <- total.oax %>%
+  select(name, muncode, elev, pop)
+
+total.oax <- total.oax %>%
+  select(-elev) %>%
+  group_by(muncode, name) %>%
+  summarise(total.pop = sum(pop),illiteracy = sum(illiteracy), indi = sum(indi), young.males = sum(young.males), 
+            fem.house = sum(fem.house), total.house = sum(total.house))
+
+total.oax <- left_join(total.oax, doctors, by = "muncode")
+total.oax <- left_join(total.oax, HDI, by = "muncode")
+total.oax <- left_join(total.oax, homicides, by = "muncode")
+total.oax <- left_join(total.oax, police, by = "muncode")
+total.oax <- left_join(total.oax, poor, by = "muncode")     
+total.oax <- left_join(total.oax, less_2500, by = "muncode")
+
+#correct errors in mun name for oaxaca agricultural variables, join this with total.oax
+oax.errors <- read.csv("data/errors2007oax.csv", header = TRUE, stringsAsFactors = FALSE)
+#fix name for a town that didn't match
+oax.errors$censo2010[4] <- "SAN JUAN NUMI, OAXACA" #DO THIS ALSO WITH OAXACA AGR VAR DF
+
+agr.var.oax$name <- correct_mun(agr.var.oax$name, oax.errors$agricola2007, oax.errors$censo2010)
+
+oax.df <- left_join(total.oax, agr.var.oax, by = "name")
+
+#oaxaca distritos 2010
+oaxaca.distritos <- read.xlsx("data/oaxaca_distritos_2010.xls", 3, startRow = 6, endRow = 685, encoding = "latin1")
+oaxaca.distritos <- tbl_df(oaxaca.distritos) 
+
+#create table with municipality codes 
+distritos <- oaxaca.distritos  %>%
+  select(mun = Clave) %>%
+  filter(!is.na(mun)) %>%
+  mutate(mun = as.numeric(as.character(mun)), 
+         muncode = (mun + 20000))
+
+#create column that assigns districts to each muncode
+distritos$distrito = rep(NA, nrow(distritos))
+distritos$distrito[is.na(distritos$mun)] <- c(1:30)
+distritos$distrito <- na.locf(distritos$distrito)
+
+#filter out NA rows with district names
+distritos <- distritos %>%
+  filter(!is.na(mun))
+```
+
+**Calculating variables for Oaxaca**
+```{r, warning=FALSE, echo=FALSE}
+#join district table with oaxaca population table by district and generate new muncodes with district number. filter out new municipalies(districts) with more than 75% of population living in towns of less than 2500. 
+oax.df$pop.less.2500[is.na(oax.df$pop.less.2500)] <- 0
+
+oaxaca.d <- left_join(distritos, oax.df, by = "muncode") 
+
+#fixing some glitchy variables and filtering NAs
+oaxaca.d$pol1k <- as.numeric(as.character(oaxaca.d$pol1k))
+oaxaca.d$total.coffee.units[is.na(oaxaca.d$total.coffee.units)] <- 0
+oaxaca.d$total.cattle.units[is.na(oaxaca.d$total.cattle.units)] <- 0
+oaxaca.d <- oaxaca.d %>%
+  filter(!is.na(state.name)) %>%
+  filter(!is.na(pol1k)) %>%
+  filter(!is.na(name)) %>%
+  filter(!is.na(docs_10k))
+
+#calculate variables for Oaxaca
+oaxaca.d <- oaxaca.d  %>% 
+  group_by(distrito) %>% 
+  summarise(pop.less.2500 = sum(pop.less.2500), total.pop = sum(total.pop), prop.less.2500 = pop.less.2500/total.pop,
+            indi = sum(indi), pct.indi = (indi/total.pop) * 100, 
+            illiteracy = sum(illiteracy), no.lit.rate = (illiteracy/total.pop) * 100,
+            docs_10k = sum(docs_10k), 
+            fem.house = sum(fem.house), total.house = sum(total.house), pct.fem.house = (fem.house/total.house) * 100,
+            young.males = sum(young.males), pct.young = (young.males/total.pop) * 100, 
+            hom_total = sum(hom_total), hom.rate = hom_total/(total.pop*3)*100000,
+            ejidal = sum(ejidal), surface = sum(surface), log.pop.surface = log10(total.pop/surface), 
+            pct.ej = (ejidal/surface) * 100,
+            comunal = sum(comunal), pct.com = (comunal/surface) * 100, 
+            private = sum(private), pct.individual = (private/surface) * 100,
+            total.cattle.units = sum(total.cattle.units), total.units = sum(total.units),
+            pct.cattle = (total.cattle.units/total.units) * 100, corn.tons = sum(corn.tons), 
+            corn.ha = sum(corn.ha), log.corn.yield = log10(corn.tons/corn.ha), 
+            total.coffee.units = sum(total.coffee.units), pct.coffee = (total.coffee.units/total.units) * 100, 
+            pol1k = sum(pol1k)) %>%
+  select(-illiteracy, -indi, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -total.cattle.units, -corn.tons, -corn.ha) %>%
+  mutate(muncode = distrito + 20000)
+
+# addsqkm = sum(sqkm), log.pop.dens = log10(total.pop/sqkm), 
+```
+
+**Adding Weighted Variables for Oaxaca**
+```{r, warning=FALSE, error=FALSE}
+## SD ELEVATION WEIGHTED BY POPULATION 
+
+## join population and elevation data frame with distritos in oaxaca 
+pop_elev.dis <- left_join(oax.elev, distritos, by = "muncode")
+
+## calculate sd elevation weighted by population grouped by distrito, and a dummy variable for the state of mexico
+weigh_elev.oax <- pop_elev.dis %>% 
+  group_by(distrito) %>% 
+  summarise(weigh.elev = wt.sd(elev, pop)) %>% # use SDMTools to calculate weighted sd
+  mutate(muncode = 20000 + distrito, dummy.SOM = 0) %>%
+  select(-distrito)
+
+## join weighted elevation with oaxaca main data frame
+oaxaca.d <- left_join(oaxaca.d, weigh_elev.oax, by = "muncode")
+
+#calculate weighted SD of elevation for map
+elev.map.oax <- left_join(distritos, oax.elev, by = "muncode") %>%
+  group_by(distrito) %>%
+  mutate(weigh.elev = wt.sd(elev, pop)) %>% 
+  select(muncode, weigh.elev)
+
+elev.map.oax <- elev.map.oax[!duplicated(elev.map.oax), ]
+
+#GINI INDEX
+#calculate population weighted average Gini index for Oaxacan municipalities
+pop_gini <- left_join(total_pop, poor, by = "muncode")
+
+pop_gini <- pop_gini %>%
+  group_by(gini, muncode) %>%
+  summarise(total.pop = sum(pop)) %>% 
+  filter(muncode %in% 20001:20570)
+
+pop_gini.dis <- left_join(pop_gini, distritos, by = "muncode")
+
+weigh_gini.oax <- pop_gini.dis %>%
+  group_by(distrito) %>%
+  summarise(weigh.gini = wt.mean(gini, total.pop)) %>%
+  mutate(muncode = 20000 + distrito) %>%
+  select(-distrito)
+
+weigh_gini.oax <- weigh_gini.oax %>%
+  mutate(gini = weigh.gini) %>%
+  select(-weigh.gini)
+
+#join with main oaxaca dataframe
+oaxaca.d <- left_join(oaxaca.d, weigh_gini.oax, by = "muncode")
+
+#HDI
+#calculate population weighted average HDI for Oaxacan municipalities
+pop_hdi <- left_join(total_pop, HDI, by = "muncode")
+
+pop_hdi <- pop_hdi %>%
+  group_by(HDI, muncode) %>%
+  summarise(total.pop = sum(pop)) %>% 
+  filter(muncode %in% 20001:20570)
+
+pop_hdi.dis <- left_join(pop_hdi, distritos, by = "muncode")
+
+weigh_hdi.oax <- pop_hdi.dis %>%
+  group_by(distrito) %>%
+  summarise(weigh.hdi = wt.mean(HDI, total.pop)) %>%
+  mutate(muncode = 20000 + distrito) %>%
+  select(-distrito)
+
+weigh_hdi.oax <- weigh_hdi.oax %>%
+  mutate(HDI = weigh.hdi) %>%
+  select(-weigh.hdi)
+
+#join with main oaxaca dataframe
+oaxaca.d <- left_join(oaxaca.d, weigh_hdi.oax, by = "muncode")
+
+#select variables for dataframe used in map for Oaxaca
+oax.for.map <- select(oaxaca.d, muncode, hom.rate) 
+
+#filter to oaxaca sample 
+sample.oax <- oaxaca.d %>%  
+  filter(prop.less.2500 > .75) %>% 
+  select(-distrito, -total.pop) 
+
+```
+
+**Bind two subsets into main sample**
+```{r, warning=FALSE, error=FALSE}
+
+#need to add log pop density (log.pop.dens)
+sample.main <- sample.main %>%
+  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI)
+
+sample.oax <- sample.oax %>%
+  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, sd.elev, log.pop.surface,  pct.coffee, gini, pol1k, HDI)
+
+sample <- rbind(sample.main, sample.oax)
+
+
+#fix log corn yield, which was somehow coded as a character string
+sample$log.corn.yield <- as.numeric(sample$log.corn.yield)
+sample$log.pop.surface <- as.numeric(sample$log.pop.surface)
+```
+
+**Results**
+```{r, results = 'hide', warning=FALSE, error=FALSE}
+library(MASS)
+library(texreg)
+```
+
+```{r, warning=FALSE, error=FALSE}
+#Create function to extract necessary goodness-of-fit statistics for table, such that it matches Villarreal's table
+extract.negbin <- function(model) {
+  s <- summary(model)
+  names <- rownames(s$coef)
+  co <- s$coef[, 1]
+  se <- s$coef[, 2]
+  pval <- s$coef[, 4]
+  
+  th <- 1/(s$theta)
+  se.th <- s$SE.theta
+  ll <- (s$twologlik)/2
+  n <- nobs(model)
+ 
+  gof <- c(th, se.th, n, ll)
+  gof.names <- c("Overdispersion parameter alpha", "Standard error of overdispersion", "N", "Log Likelihood")
+ 
+  tr <- createTexreg(
+  coef.names = names,
+  coef = co,
+  se = se,
+  pvalues = pval,
+  gof.names = gof.names,
+  gof = gof
+  )
+  return(tr)
+  
+  }
+```
+
+*2 Models for Hypotheses 1 and 2:*
+(1) When agricultural land is scarce relative to the number of individuals, there will be more conflict and therefore more homicides
+(2) An unequal distribution of land will lead to more violent conflict
+
+
+```{r, warning=FALSE, error=FALSE}
+#Run models and build tables
+One.a <- glm.nb(hom.rate ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+
+One.b <- glm.nb(hom.rate ~ pop.per.HA + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM,data = sample) 
+```
+
+```{r, results='asis'}
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.b)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "Persons per hectare", "Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1), groups = list("Plot size and crop yields" = 1:3, "Demographic variables" = 4:6, "Resource deprivation" = 7:8, "Family structure" = 9, "Access to medical attention" = 10, "Geographical region" = 11), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
+```
+
+*3 Models for Hypotheses 3 and 4:*
+(3) When property rights are not well enforced or are contingent, there will be more conflict over lands. For this reason, ejido and communal units will experience more violence
+(4) agricultural production systems that involve more commodified relations of production and exchange will be associated with a breakdown of community social cohesion and therefore with more violence, and the introduction of cash crops will lead to greater conflict over resources and control over trade, and consequently to more violence
+
+
+```{r, warning=FALSE, error=FALSE}
+Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample)
+ 
+Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+ 
+Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+```
+
+```{r, results='asis'}
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production", "Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:5, "Plot size and crop yields" = 6:7, "Demographic variables" = 8:10, "Resource deprivation" = 11:12, "Family structure" = 13, "Access to medical attention" = 14, "Geographical region" = 15), inline.css = TRUE, doctype = TRUE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, digits = 4, center = FALSE))
+```
+
+*1 Model for Hypothesis 5:* 
+(5) remote mountainous areas will have higher rates of violence due to the absence of state institutions
+
+
+```{r, warning=FALSE, error=FALSE}
+Three <- glm.nb(hom.rate ~ weigh.elev + pol1k + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+```
+
+```{r, results = 'asis'}
+gsub("\n[[:space:]]","", htmlreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on State Presence (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "Police per 1,000" "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1), groups = list("State presence" = 1:2, "Collective ownership" = 3:4, "Organization of agricultural production" =5:7, "Plot size and crop yields" = 8:9, "Demographic variables" = 10:12, "Resource deprivation" = 13:14, "Family structure" = 15, "Access to medical attention" = 16, "Geographical region" = 17), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
+```
+
+**Conclusions**
