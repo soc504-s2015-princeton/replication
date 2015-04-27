@@ -26,6 +26,7 @@ library(SDMTools)
 library(readxl)
 library(readr)
 library(gdata)
+library(classInt)
 ```
 
 **Adding New Variables**
@@ -84,6 +85,17 @@ homicides <- homicides %>%
   select(muncode, name, `2008`:`2006`) %>%
   mutate(hom_total = `2006` + `2007` + `2008`) %>%
   select(-`2006`, -`2007`, -`2008`, -name)
+
+# area in sqkm ------------------------------------------------------------
+
+map2010 <- read.dbf("data/maps/distritos_2010.dbf")
+map2010 <- tbl_df(map2010)
+
+area <- map2010  %>%
+  mutate(sqkm = (AREA/1000^2)) %>%
+  select(muncode, sqkm)
+
+area.oax <- filter(area, muncode %in% 20001:20030)
 
 # census 2010 -------------------------------------------------------------
 census <- read_delim("data/ITER_NALTXT10.TXT", delim = "\t", col_names = TRUE,
@@ -166,11 +178,12 @@ total.main <- left_join(total.main, homicides, by = "muncode")
 total.main <- left_join(total.main, police, by = "muncode")
 total.main <- left_join(total.main, poor, by = "muncode")     
 total.main <- left_join(total.main, less_2500, by = "muncode")
- #do we have a square kilometers area variable so we can calculate population density?  
+total.main <- left_join(total.main, area, by = "muncode")
+
 ```
 
 **Adding Updated Agricultural Variables**
-```{r, warning=FALSE, error=FALSE}
+```{r, warning=FALSE, error=FALSE, message=FALSE}
 # agricultural variables --------------------------------------------------
 
 #production units
@@ -338,6 +351,11 @@ agr.var.main$name <- correct_mun(agr.var.main$name, errors$agricola2007, errors$
 #join agricultural and census variables to main data frame
 main.df <- full_join(total.main, agr.var.main, by = "name")
 
+
+main.for.map <- main.df %>%
+  mutate(hom.rate = hom_total/(total.pop*3) * 100000) %>%
+  select(muncode, weigh.elev, sd.elev, hom.rate)
+
 ```
 
 **Calculating variables for main data frame and filtering to main sample**
@@ -364,19 +382,25 @@ main.df <- main.df %>%
          log.corn.yield = log10(corn.tons/corn.ha), 
          pct.cattle = (total.cattle.units/total.units) * 100,
          pct.coffee = (total.coffee.units/total.units) * 100,
-         log.pop.surface = log10(total.pop/surface)) %>%
+         log.pop.surface = log10(total.pop/surface),
+         log.pop.dens = log10(total.pop/sqkm)) %>%
   select(-indi, -illiteracy, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -corn.ha, -total.cattle.units, -total.coffee.units, -mun.name, -state.name)
 #add log.pop.dens = log10(total.pop/sqkm), log persons per HA?
 
-main.df$log.corn.yield <- gsub("NA", "0", main.df$log.corn.yield)
-main.df$log.corn.yield <- gsub("-Inf", "0", main.df$log.corn.yield)
+
+main.df$log.corn.yield[main.df$log.corn.yield == "-Inf"] <- 0
+main.df$log.corn.yield[is.na(main.df$log.corn.yield)] <- 0
 #main.df$log.pop.surface <- gsub("-Inf", "0", main.df$log.pop.surface)
 
 #Add dummy variable for State of Mexico, filter to main sample
 sample.main <- main.df %>%
   mutate(dummy.SOM = as.numeric(muncode %in% 15001:15125)) %>%
   filter(prop.less.2500 > .75) %>%
-  select(-name, -sd.elev, -total.pop, -pct.poor, -pct.extpoor)
+  select(-name, -total.pop, -pct.poor, -pct.extpoor)
+
+
+
+
 ```
 
 **CONVERTING AND CALCULATING DATA FOR OAXACA**
@@ -467,7 +491,12 @@ oaxaca.d <- oaxaca.d  %>%
   select(-illiteracy, -indi, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -total.cattle.units, -corn.tons, -corn.ha, -total.coffee.units) %>%
   mutate(muncode = distrito + 20000)
 
-# addsqkm = sum(sqkm), log.pop.dens = log10(total.pop/sqkm), log persons per HA?
+##Population density
+
+oaxaca.d <- left_join(oaxaca.d, area.oax, by = "muncode") %>%
+  mutate(log.pop.dens = log10(total.pop/sqkm)) %>%
+  select(-sqkm)
+
 ```
 
 **Adding Weighted Variables for Oaxaca**
@@ -480,7 +509,7 @@ pop_elev.dis <- left_join(oax.elev, distritos, by = "muncode")
 ## calculate sd elevation weighted by population grouped by distrito, and a dummy variable for the state of mexico
 weigh_elev.oax <- pop_elev.dis %>% 
   group_by(distrito) %>% 
-  summarise(weigh.elev = wt.sd(elev, pop)) %>% # use SDMTools to calculate weighted sd
+  summarise(sd.elev = sd(elev), weigh.elev = wt.sd(elev, pop)) %>% # use SDMTools to calculate weighted sd
   mutate(muncode = 20000 + distrito, dummy.SOM = 0) %>%
   select(-distrito)
 
@@ -488,12 +517,9 @@ weigh_elev.oax <- pop_elev.dis %>%
 oaxaca.d <- left_join(oaxaca.d, weigh_elev.oax, by = "muncode")
 
 #calculate weighted SD of elevation for map
-elev.map.oax <- left_join(distritos, oax.elev, by = "muncode") %>%
-  group_by(distrito) %>%
-  mutate(weigh.elev = wt.sd(elev, pop)) %>% 
-  select(muncode, weigh.elev)
+elev.map.oax <- weigh_elev.oax %>% 
+  select(-dummy.SOM)
 
-elev.map.oax <- elev.map.oax[!duplicated(elev.map.oax), ]
 
 #GINI INDEX
 #calculate population weighted average Gini index for Oaxacan municipalities
@@ -558,18 +584,106 @@ sample.oax <- oaxaca.d %>%
 
 #need to add log pop density (log.pop.dens)
 sample.main <- sample.main %>%
-  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev)
+  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev, log.pop.dens)
 
 sample.oax <- sample.oax %>%
-  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev)
+  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev, log.pop.dens)
 
 sample <- rbind(sample.main, sample.oax)
 
 
 #fix log corn yield, which was somehow coded as a character string
-sample$log.corn.yield <- as.numeric(sample$log.corn.yield)
+#sample$log.corn.yield <- as.numeric(sample$log.corn.yield)
 #sample$log.pop.surface <- as.numeric(sample$log.pop.surface)
 ```
+
+
+**Maps**
+
+![Homicide Rate 2006 - 2008](map_hom2008.png)
+
+![Std. Deviation of Elevation](map_sdelev2008.png)
+
+```{r}
+
+# map_oax <- left_join(oax.for.map, elev.map.oax, by = "muncode")
+# 
+# map_final <- rbind(main.for.map, map_oax)
+# 
+# map_final$weigh.elev[map_final$weigh.elev == "NaN"] <- 0
+# 
+# map_final$sd.elev[is.na(map_final$sd.elev)] <- 0
+# 
+# map.dbf <- read.dbf("data/maps/old-distritos_2010.dbf")
+# 
+# map.merged <- left_join(map.dbf, map_final, by = "muncode" )
+# #map.merged <- map.merged[order(map.merged$OID), ]
+# 
+# write.dbf(map.dbf, "data/maps/old-distritos_2010.dbf") 
+# write.dbf(map.merged, "data/maps/distritos_2010.dbf")
+# 
+# #intervals for color-coding and legend
+# classIntervals(map_final$sd.elev, n = 4)
+# classIntervals(map_final$hom.rate, n = 4)
+# classIntervals(map_final$weigh.elev, n = 4)
+# 
+# 
+# breaks_hom <- c(0, 15, 45, 75, 284.8084)
+# labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
+# 
+# breaks_sdelev <- c(0, 100, 200, 390, 808.2344)
+# labels_sdelev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
+# 
+# breaks_welev <- c(0, 100, 200, 390, 910.4124)
+# labels_welev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
+# 
+# #preparing maps
+# 
+# gpclibPermit()
+# map.shp <-  readShapePoly("data/maps/distritos_2010.shp")
+# 
+# p <- ggplot(map.shp@data, aes(sd_elev, hom_rate, weigh_elev))
+# 
+# 
+# map_geom <- fortify(map.shp, region = "muncode")
+# 
+# map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
+# 
+# map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
+# 
+# map_geom$sdelev_breaks <- cut(map_geom$sd_elev, breaks = breaks_sdelev, labels = labels_sdelev, include.lowest = TRUE)
+# 
+# map_geom$welev_breaks <- cut(map_geom$weigh_elev, breaks = breaks_welev, labels = labels_welev, include.lowest = TRUE)
+# 
+# 
+# map_hom <- ggplot(data = map_geom, aes(x = long, y = lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+#   labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 2006 - 2008")
+# 
+# map_hom + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+# ggsave("map_hom2008.pdf")
+# 
+# 
+# map_sd <- ggplot(data = map_geom, aes(x = long, y = lat, group = group, fill = sdelev_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+#   labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
+# 
+# map_sd + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+# ggsave("map_sdelev2008.pdf")
+# 
+# 
+# map_welev <- ggplot() + geom_polygon(data = map_geom, aes(x = long, y = lat, group = group, fill = welev_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+#   labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
+# 
+# map_welev + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+# ggsave("map_welev2008.pdf")
+
+
+
+```
+
+
+
+
+
 
 **Results**
 ```{r, results = 'hide', warning=FALSE, error=FALSE}
@@ -614,13 +728,13 @@ extract.negbin <- function(model) {
 
 ```{r, warning=FALSE, error=FALSE}
 #Run models and build tables
-One.a <- glm.nb(hom.rate ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+One.a <- glm.nb(hom.rate ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
 
-One.b <- glm.nb(hom.rate ~ pop.per.HA + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM,data = sample) 
+One.b <- glm.nb(hom.rate ~ log.pop.surface + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi +  HDI + pct.fem.house + docs_10k + dummy.SOM,data = sample) 
 ```
 
 ```{r, results='asis'}
-gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.b)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "Persons per hectare", "Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1), groups = list("Plot size and crop yields" = 1:3, "Demographic variables" = 4:6, "Resource deprivation" = 7:8, "Family structure" = 9, "Access to medical attention" = 10, "Geographical region" = 11), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.b)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "Persons per hectare", "Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1), groups = list("Inequality, land, and crop yields" = 1:3, "Demographic variables" = 4:6, "Resource deprivation" = 7, "Family structure" = 8, "Access to medical attention" = 9, "Geographical region" = 10), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
 ```
 
 *3 Models for Hypotheses 3 and 4:*
@@ -629,15 +743,15 @@ gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.
 
 
 ```{r, warning=FALSE, error=FALSE}
-Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample)
+Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample)
  
-Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
  
-Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
 ```
 
 ```{r, results='asis'}
-gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production", "Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:5, "Plot size and crop yields" = 6:7, "Demographic variables" = 8:10, "Resource deprivation" = 11:12, "Family structure" = 13, "Access to medical attention" = 14, "Geographical region" = 15), inline.css = TRUE, doctype = TRUE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, digits = 4, center = FALSE))
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production", "Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:5, "Plot size and crop yields" = 6:7, "Demographic variables" = 8:10, "Resource deprivation" = 11, "Family structure" = 12, "Access to medical attention" = 13, "Geographical region" = 14), inline.css = TRUE, doctype = TRUE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, digits = 4, center = FALSE))
 ```
 
 *1 Model for Hypothesis 5:* 
@@ -645,11 +759,11 @@ gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.
 
 
 ```{r, warning=FALSE, error=FALSE}
-Three <- glm.nb(hom.rate ~ weigh.elev + pol1k + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+Three <- glm.nb(hom.rate ~ weigh.elev + pol1k + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
 ```
 
 ```{r, results = 'asis'}
-gsub("\n[[:space:]]","", htmlreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on State Presence (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "Police per 1,000" "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1), groups = list("State presence" = 1:2, "Collective ownership" = 3:4, "Organization of agricultural production" =5:7, "Plot size and crop yields" = 8:9, "Demographic variables" = 10:12, "Resource deprivation" = 13:14, "Family structure" = 15, "Access to medical attention" = 16, "Geographical region" = 17), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
+gsub("\n[[:space:]]","", htmlreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on State Presence (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "Police per 1,000", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1), groups = list("State presence" = 1:2, "Collective ownership" = 3:4, "Organization of agricultural production" =5:7, "Plot size and crop yields" = 8:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
 ```
 
 **Conclusions**
