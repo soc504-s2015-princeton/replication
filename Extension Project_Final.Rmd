@@ -179,10 +179,10 @@ total.main <- left_join(total.main, police, by = "muncode")
 total.main <- left_join(total.main, poor, by = "muncode")     
 total.main <- left_join(total.main, less_2500, by = "muncode")
 total.main <- left_join(total.main, area, by = "muncode")
-
 ```
 
 **Adding Updated Agricultural Variables**
+*Note: The great HADLEY WICKHAM has noted that there is a glitch in the read_excel() command such that it produces ugly output in the console when we run it. This output currently cannot be hidden in R Markdown. However, this function is much more efficient than the previous xlsx package, so we have used it here. We will do more troubleshooting on this in the coming days.* 
 ```{r, warning=FALSE, error=FALSE, message=FALSE}
 # agricultural variables --------------------------------------------------
 
@@ -281,20 +281,20 @@ df <- df %>%
   df$state.name <- gsub("COAHUILA DE ZARAGOZA", "COAHUILA", df$state.name)
   df$state.name <- gsub("VERACRUZ LLAVE", "VERACRUZ", df$state.name)
   df$state.name <- gsub("MICHOACAN DE OCAMPO", "MICHOACAN", df$state.name)
-  
+
   ## removes accents and tilde in municipal names
   df$mun.name<- gsub("`|\\'", "", iconv(df$mun.name, to="ASCII//TRANSLIT"))
   df$mun.name <- gsub("~","", df$mun.name)
   df$mun.name <- gsub("¨","", df$mun.name)
   df$mun.name <- gsub("~","", df$mun.name)
   df$mun.name <- gsub("\"","", df$mun.name)
-  
-  
+
+
   df$mun.name <- trim(df$mun.name)
   df$state.name <- trim(df$state.name)
   df <- df %>%
     mutate(name = paste(mun.name, state.name, sep = ", "))
-  
+
 }
 
 prod_units <- naming(prod_units)
@@ -384,22 +384,17 @@ main.df <- main.df %>%
          pct.coffee = (total.coffee.units/total.units) * 100,
          log.pop.surface = log10(total.pop/surface),
          log.pop.dens = log10(total.pop/sqkm)) %>%
-  select(-indi, -illiteracy, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -corn.ha, -total.cattle.units, -total.coffee.units, -mun.name, -state.name)
-#add log.pop.dens = log10(total.pop/sqkm), log persons per HA?
+  select(-indi, -illiteracy, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -corn.ha, -total.cattle.units, -total.coffee.units, -mun.name, -state.name, -sqkm)
 
 
 main.df$log.corn.yield[main.df$log.corn.yield == "-Inf"] <- 0
 main.df$log.corn.yield[is.na(main.df$log.corn.yield)] <- 0
-#main.df$log.pop.surface <- gsub("-Inf", "0", main.df$log.pop.surface)
 
 #Add dummy variable for State of Mexico, filter to main sample
 sample.main <- main.df %>%
   mutate(dummy.SOM = as.numeric(muncode %in% 15001:15125)) %>%
   filter(prop.less.2500 > .75) %>%
   select(-name, -total.pop, -pct.poor, -pct.extpoor)
-
-
-
 
 ```
 
@@ -425,7 +420,7 @@ total.oax <- left_join(total.oax, less_2500, by = "muncode")
 #correct errors in mun name for oaxaca agricultural variables, join this with total.oax
 oax.errors <- read.csv("data/errors2007oax.csv", header = TRUE, stringsAsFactors = FALSE)
 #fix name for a town that didn't match
-oax.errors$censo2010[4] <- "SAN JUAN NUMI, OAXACA" #DO THIS ALSO WITH OAXACA AGR VAR DF
+oax.errors$censo2010[4] <- "SAN JUAN NUMI, OAXACA" 
 
 agr.var.oax$name <- correct_mun(agr.var.oax$name, oax.errors$agricola2007, oax.errors$censo2010)
 
@@ -576,7 +571,6 @@ oax.for.map <- select(oaxaca.d, muncode, hom.rate)
 sample.oax <- oaxaca.d %>%  
   filter(prop.less.2500 > .75) %>% 
   select(-distrito, -total.pop) 
-
 ```
 
 **Bind two subsets into main sample**
@@ -591,10 +585,6 @@ sample.oax <- sample.oax %>%
 
 sample <- rbind(sample.main, sample.oax)
 
-
-#fix log corn yield, which was somehow coded as a character string
-#sample$log.corn.yield <- as.numeric(sample$log.corn.yield)
-#sample$log.pop.surface <- as.numeric(sample$log.pop.surface)
 ```
 
 
@@ -721,6 +711,8 @@ extract.negbin <- function(model) {
   }
 ```
 
+
+
 *2 Models for Hypotheses 1 and 2:*
 (1) When agricultural land is scarce relative to the number of individuals, there will be more conflict and therefore more homicides
 (2) An unequal distribution of land will lead to more violent conflict
@@ -730,12 +722,14 @@ extract.negbin <- function(model) {
 #Run models and build tables
 One.a <- glm.nb(hom.rate ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
 
-One.b <- glm.nb(hom.rate ~ log.pop.surface + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi +  HDI + pct.fem.house + docs_10k + dummy.SOM,data = sample) 
+One.b <- glm.nb(hom.rate ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi +  HDI + pct.fem.house + docs_10k + dummy.SOM + log.pop.surface, data = sample) 
 ```
 
 ```{r, results='asis'}
-gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.b)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "Persons per hectare", "Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1), groups = list("Inequality, land, and crop yields" = 1:3, "Demographic variables" = 4:6, "Resource deprivation" = 7, "Family structure" = 8, "Access to medical attention" = 9, "Geographical region" = 10), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.b)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant",  "Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Persons per hectare"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1), groups = list("Inequality, land, and crop yields" = 1:3, "Demographic variables" = 4:6, "Resource deprivation" = 7, "Family structure" = 8, "Access to medical attention" = 9, "Geographical region" = 10), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
 ```
+
+
 
 *3 Models for Hypotheses 3 and 4:*
 (3) When property rights are not well enforced or are contingent, there will be more conflict over lands. For this reason, ejido and communal units will experience more violence
@@ -745,14 +739,16 @@ gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.
 ```{r, warning=FALSE, error=FALSE}
 Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample)
  
-Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + pct.coffee + pct.cattle + pct.individual, data = sample) 
  
-Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + pct.coffee + pct.cattle, data = sample) 
 ```
 
 ```{r, results='asis'}
-gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production", "Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:5, "Plot size and crop yields" = 6:7, "Demographic variables" = 8:10, "Resource deprivation" = 11, "Family structure" = 12, "Access to medical attention" = 13, "Geographical region" = 14), inline.css = TRUE, doctype = TRUE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, digits = 4, center = FALSE))
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "% coffee production", "% cattle production", "% individual production"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 15, 13, 14, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:5, "Plot size and crop yields" = 6:7, "Demographic variables" = 8:10, "Resource deprivation" = 11, "Family structure" = 12, "Access to medical attention" = 13, "Geographical region" = 14), inline.css = TRUE, doctype = TRUE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, digits = 4, center = FALSE))
 ```
+
+
 
 *1 Model for Hypothesis 5:* 
 (5) remote mountainous areas will have higher rates of violence due to the absence of state institutions
@@ -766,4 +762,7 @@ Three <- glm.nb(hom.rate ~ weigh.elev + pol1k + pct.ej + pct.com + pct.individua
 gsub("\n[[:space:]]","", htmlreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on State Presence (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "Police per 1,000", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","Gini index", "Log maize yields", "Log population density", "% young males", "% indigenous", "Human Development Index", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1), groups = list("State presence" = 1:2, "Collective ownership" = 3:4, "Organization of agricultural production" =5:7, "Plot size and crop yields" = 8:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
 ```
 
+
+
 **Conclusions**
+Our extension shows that (as expected) poverty, inequality, the percentage of young men in a municipality, and the percentage of female-headed households in a municipality are related to the municipality's homicide rate. The municipality's degree of collective ownership is also related to its homicide rate. However, with 2007-10 data, Villarreal's main conclusion that state presence (measured by altitude and an additional variable, police per 1,000 people) no longer holds. The coefficient for weighted SD of elevation is barely significant, with an SE half its size. 
