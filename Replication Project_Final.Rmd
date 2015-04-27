@@ -845,14 +845,16 @@ Higher land scarcity and agricultural units organized by group were not found to
 *Sample size problem, looking for numbers above 11*
 ```{r}
 apply(sample, 2, function(x) length(which(is.na(x))))
-
-#pct.upto5 (45 NAs). It appears that something may be wrong with the data on plot size, which would affect the Thiel index and variable regarding plots 5 HA or less.
 ```
 
-*Potential variable selection issues:* 
+*Potential variable issues:* 
+
+-*Pct.up5, Thiel Index, Log average plot size* - This variable has 45 NAs, more than acceptable according to Villarreal's regressions. This indicates that something may be wrong with the data on plot size, which would affect the Thiel index, log average plot size, and the variable regarding plots 5 HA or less. Upon further investigation, we discovered that this is true--Mexican data privacy laws changed in 2003 which rendered a good portion of the plot size data unreportable (due to the potential to identify landowners with large swaths of land in particular municipalities). Since Villarreal's paper was produced in 2001, he would have received different data on plot size without these redactions.
 
 -*Cattle* - unsure which total to use (multiple distinct totals regarding head of cattle on different spreadsheets)
 
 -*General issue about inconsistent use of rural production units vs. total (urban + rural) production units.* Coffee units drawn from spreadsheet referencing total units, corn units from spreadsheet referencing only rural units. The percent of units dedicated to each is calculated using total_prod_units as a denominator, which references rural units ONLY. The plot size variables are calculated from a spreadsheet that references rural units only, this is not specified in the paper except for in the variable about plot sizes 5 HA or less. Susbistence agricultural units are from spreadsheet referencing urban and rural, while ejidal, comunal, and private land is drawn from spreadsheet of rural only. Villarreal is not very careful about specifying this.
 
 -*Corn tons per HA* - Used planted HA as denominator, should we have used harvested instead?
+
+-*Individual Production* - unsure whether we used the right field for this
