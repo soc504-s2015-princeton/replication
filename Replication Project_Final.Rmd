@@ -200,7 +200,8 @@ coffee <- tbl_df(coffee)
 corn <- read.csv("data/censo_agricola_1991_corn.csv", header = FALSE, skip = 6187, nrows = 2426, stringsAsFactors = FALSE, encoding = "UTF-8")
 corn <- tbl_df(corn)
 
-#function that corrects municipality names and creates a new variable with pasted municipality name and state
+#function that corrects municipality names in each dataframe and creates a new variable with pasted municipality name and state. A dataframe is inputted; the function deletes leading spaces before names (which messes up the matching), and selects and converts to character/numeric relevant variables for each dataset (V1-V7). The structure of the raw data is such that a state is only specified on the observation line above the list of municipalities in that state -- the function then assigns "NA" values to places where a state is not listed (meaning that the line is a municipality, not a state) and the same to where the municipality is not listed (meaning that the line is a state) removes special characters (i.e. spanish alphabet letters) and then uses the na.locf() function to create a variable matching municipalities to the state they are in. The function then cleans the municipality name variable and pastes the state and municipality names together and outputs a unique "name" variable for each state/mun pair.
+
 naming <- function(df) {
   df$V3 <- gsub("[[:space:]]", "", df$V3)
   df$V4 <- gsub("[[:space:]]", "", df$V4)
@@ -225,7 +226,9 @@ naming <- function(df) {
     mutate(mun = ifelse(!is.na(art), paste(art, mun, sep = " "), mun)) %>%
     filter(!is.na(mun)) %>%
     mutate(name = paste(mun, state, sep = ", ")) %>%
-    select(-art)   
+    select(-art)
+  
+  #outputs variable with names in format "municipality, state"
 }
 
 #run the naming function for each file
@@ -245,7 +248,7 @@ prod.units1 <- prod_units %>%
 
 **Ejidal and Communal Land, and Land for Individual Production**
 ```{r, warning=FALSE, error=FALSE}
-#tabulate land surface area according to property type
+#tabulate land surface area according to property type, and remove all special characters that produce errors when read into R. The list of characters below are all errors produced in reading in a modified "n" character.
 land[is.na(land)] <- 0
 land$name <- gsub("[^[:alnum:][:blank:],.()-///' ]", "N", land$name)
 
@@ -305,6 +308,8 @@ agr_var <- left_join(agr_var, subs1, by = "name" )
 agr_var <- left_join(agr_var, corn1, by = "name" )
 agr_var <- left_join(agr_var, cattle1, by = "name" )
 agr_var <- left_join(agr_var, coffee1, by = "name" )
+
+#function correct_mun to change the of municipalities to match main data frame and agricultural variables. A handful of municipality names between the agricultural variable df and the main df do not match --- the name is slightly different in each dataset (i.e. with extra spaces between words, or an extra appended word, or there was a transcription error), so the names won't match even though they refer to the same place. The below function reads in a dataframe of errors we created in which the names from both datasets that contain errors are placed next to each other (i.e. in a census variable and an agricultural variable), such that the name versions in the agricultural dataset can be replaced with the versions from the census file, resolving the conflict.
 
 #load dataframes with common mistakes in municipality names
 errors <- read.csv("data/mun_name_errors.csv", header = TRUE)
@@ -394,6 +399,7 @@ df <- left_join(df, plot_upto5, by = "muncode")
 
 **Separate Oaxaca and Main Dataframe for Variable Calculation**
 ```{r, warning=FALSE, error=FALSE}
+#separate out Oaxaca data for calculation due to different municipality definition. Oaxacan municipal codes run from 20001:20570.
 df.main <- filter(df, !(muncode %in% 20001:20570))
 df.oax <- filter(df, muncode %in% 20001:20570)
 ```
@@ -422,10 +428,13 @@ df.main <- df.main %>%
          log.avg.plot = log10(area.total/plot.total)) %>%
   select(-twn, -no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -up19, -up24, -up29, -total, -total_prod_units, -total_units, -corn.tons, -corn.ha, -total.cattle.units, -subs_units, - total.coffee.units)
 
+#fixing error values produced through calculation (dividing by 0, etc.)
 df.main$log.corn.yield <- gsub("NaN", "0", df.main$log.corn.yield)
 df.main$log.corn.yield <- gsub("-Inf", "0", df.main$log.corn.yield)
-df.main$pct.coffee[is.na(df.main$pct.coffee)] <- 0
 df.main$log.pop.surface <- gsub("-Inf", "0", df.main$log.pop.surface)
+
+#many NAs here, because only municipalities with coffee production were included in dataset. As such, an NA indicates 0 coffee production. 
+df.main$pct.coffee[is.na(df.main$pct.coffee)] <- 0
 ```
 
 **Compute Theil Index**
@@ -491,7 +500,7 @@ censo.2 <- tbl_df(censo90) %>%
   select(state = entidad, mun, twn = loc, total.pop = p_total) %>%
   mutate(muncode = (state * 1000)+mun) %>%
   filter(muncode > 1000) %>%
-  filter(twn != 0 & twn != 9998 & twn != 9999) # filter undeterminded town data
+  filter(twn != 0 & twn != 9998 & twn != 9999) #filter undeterminded town data
 
 ##join population and elevation by muncode and town
 pop_elev <- left_join(censo.2, elev, by = c("muncode", "twn"))
@@ -547,35 +556,61 @@ df.oax$pop.less.2500[is.na(df.oax$pop.less.2500)] <- 0
 oaxaca.dist <- left_join(distritos, df.oax, by = "muncode") 
 oaxaca.dist <-filter(oaxaca.dist, !(is.na(name))) 
 
-#fixing entries for a town that didn't match due to strange naming
+#fixing entries for a town that didn't match due to strange naming. These hard-coded values come from the town "Guemez" in the state of Tamaulipas - the state name has an umlaut in it which produces errors when read into R that cannot be captured by other regular expressions. This data is retrieved from the raw data and inputted.
 oaxaca.dist$ejidal[156] <- 0
 oaxaca.dist$comunal[156] <- 0
 oaxaca.dist$private[156] <- 399.35
 oaxaca.dist$total_area[156] <- 399.35
 
-#calculate the rest of the variables, create new municipality codes to correspond with districts
+#calculate the rest of the variables by summing municipality values into total district values and then applying relevant calculations, create new municipality codes to correspond with districts
 oaxaca.dist <- oaxaca.dist  %>% 
   group_by(distrito) %>% 
-  summarise(pop.less.2500 = sum(pop.less.2500), total.pop = sum(total.pop), prop.less.2500 = pop.less.2500/total.pop,
-            indi = sum(indi), pct.indi = (indi/total.pop) * 100, 
-            no.literacy = sum(no.literacy), no.lit.rate = (no.literacy/total.pop) * 100,
-            sqkm = sum(sqkm), log.pop.dens = log10(total.pop/sqkm), 
-            doctors = sum(doctors), docs.per.10k = (doctors/total.pop)*10000, 
-            fem.house = sum(fem.house), total.house = sum(total.house), pct.fem.house = (fem.house/total.house) * 100,
-            young.total = sum(young.total), pct.young = (young.total/total.pop) * 100, 
-            hom.total = sum(hom.total), hom.rate = hom.total/(total.pop*3)*100000,
-            ejidal = sum(ejidal), total_area = sum(total_area), log.pop.surface = log10(total.pop/total_area), 
+  summarise(pop.less.2500 = sum(pop.less.2500), 
+            total.pop = sum(total.pop), 
+            prop.less.2500 = pop.less.2500/total.pop,
+            indi = sum(indi), 
+            pct.indi = (indi/total.pop) * 100, 
+            no.literacy = sum(no.literacy), 
+            no.lit.rate = (no.literacy/total.pop) * 100,
+            sqkm = sum(sqkm), 
+            log.pop.dens = log10(total.pop/sqkm), 
+            doctors = sum(doctors), 
+            docs.per.10k = (doctors/total.pop)*10000, 
+            fem.house = sum(fem.house), 
+            total.house = sum(total.house), 
+            pct.fem.house = (fem.house/total.house) * 100,
+            young.total = sum(young.total), 
+            pct.young = (young.total/total.pop) * 100, 
+            hom.total = sum(hom.total), 
+            hom.rate = hom.total/(total.pop*3)*100000,
+            ejidal = sum(ejidal), 
+            total_area = sum(total_area), 
+            log.pop.surface = log10(total.pop/total_area), 
             pct.ej = (ejidal/total_area) * 100,
-            comunal = sum(comunal), pct.com = (comunal/total_area) * 100,
-            private = sum(private), pct.individual = (private/total_area) * 100,
-            total.cattle.units = sum(total.cattle.units), total_prod_units = sum(total_prod_units), pct.cattle = (total.cattle.units/total_prod_units) * 100,
-            subs_units = sum(subs_units), total_units = sum(total_units), pct.subs = (subs_units/total_units) * 100,
-            corn.tons = sum(corn.tons), corn.ha = sum(corn.ha), log.corn.yield = log10(corn.tons/corn.ha),
-            total.coffee.units = sum(total.coffee.units), pct.coffee = (total.coffee.units/total_prod_units) * 100, 
-            plot.total = sum(plot.total), units.to5 = sum(units.to5), pct.upto5 = (units.to5/plot.total) * 100, area.total = sum(area.total), log.avg.plot = log10(area.total/plot.total)) %>%
+            comunal = sum(comunal), 
+            pct.com = (comunal/total_area) * 100,
+            private = sum(private), 
+            pct.individual = (private/total_area) * 100,
+            total.cattle.units = sum(total.cattle.units), 
+            total_prod_units = sum(total_prod_units), 
+            pct.cattle = (total.cattle.units/total_prod_units) * 100,
+            subs_units = sum(subs_units), 
+            total_units = sum(total_units), 
+            pct.subs = (subs_units/total_units) * 100,
+            corn.tons = sum(corn.tons), 
+            corn.ha = sum(corn.ha), 
+            log.corn.yield = log10(corn.tons/corn.ha),
+            total.coffee.units = sum(total.coffee.units), 
+            pct.coffee = (total.coffee.units/total_prod_units) * 100, 
+            plot.total = sum(plot.total), 
+            units.to5 = sum(units.to5), 
+            pct.upto5 = (units.to5/plot.total) * 100, 
+            area.total = sum(area.total), 
+            log.avg.plot = log10(area.total/plot.total)) %>%
   select(-no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -total.cattle.units, -subs_units, -total_units, -corn.tons, -corn.ha) %>%
   mutate(muncode = distrito + 20000)
 
+#many NAs here, because only municipalities with coffee production were included in dataset. As such, an NA indicates 0 coffee production. 
 oaxaca.dist$pct.coffee[is.na(oaxaca.dist$pct.coffee)] <- 0
 
 ## ADDING SD ELEVATION WEIGHTED BY POPULATION TO OAXACA
@@ -662,8 +697,13 @@ sample <- rbind(sample.main, sample.oax)
 
 #fix log corn yield, which was somehow coded as a character string
 sample$log.corn.yield <- as.numeric(sample$log.corn.yield)
-sample$log.pop.surface[512] <- 0
+
+#missed an error in calculated variable earlier - (produced by taking log of 0)
+sample$log.pop.surface[sample$log.pop.surface == "Inf"] <- 0 
+
+#fix log pop surface, which was somehow coded as a character string
 sample$log.pop.surface <- as.numeric(sample$log.pop.surface)
+
 #round homicide rate to whole number, so appropriate for negative binomial regression
 sample$hom.rate <- round(sample$hom.rate, digits = 0)
 ```
@@ -757,7 +797,7 @@ library(texreg)
 ```
 
 ```{r}
-#Create function to extract necessary goodness-of-fit statistics for table, such that it matches Villarreal's table
+#Create function to extract necessary goodness-of-fit statistics for table, such that it matches Villarreal's table. The items called by position are always present in that position because they are being extracted from the standard glm.nb() output.
 extract.negbin <- function(model) {
   s <- summary(model)
   names <- rownames(s$coef)
@@ -797,7 +837,27 @@ One.c <- glm.nb(hom.rate ~ log.pop.surface + theil + log.corn.yield + log.pop.de
 ```
 
 ```{r, results='asis'}
-gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.b), extract.negbin(One.c)), caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Log average plot size", "Log persons per hectare"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 12, 13, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1), groups = list("Plot size and crop yields" = 1:5, "Demographic variables" = 6:8, "Resource deprivation" = 9, "Family structure" = 10, "Access to medical attention" = 11, "Geographical region" = 12), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
+#produce table using texreg package. htmlreg() produces a table that renders in R Markdown. The leading gsub() removes leading spaces that are created when the code is turned into html code - without the gsub() the table does not run.
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.b), extract.negbin(One.c)), 
+    caption = "Table 1: Coefficients from the Negative Binomial Regression Models of Homicide on Land Scarcity and Inequality (Hypotheses 1 and 2)", 
+    caption.above = TRUE, 
+    stars = c(.05, .01), 
+    custom.coef.names = c("Constant", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", 
+        "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "Log average 
+        plot size", "Log persons per hectare"), 
+    custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", 
+    include.intercept = TRUE, 
+    reorder.coef = c(2, 12, 13, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1), 
+    groups = list("Plot size and crop yields" = 1:5, "Demographic variables" = 6:8, "Resource deprivation" = 9, "Family structure" = 10, "Access to medical 
+        attention" = 11, "Geographical region" = 12), 
+    inline.css = TRUE, 
+    doctype = FALSE, 
+    html.tag = FALSE, 
+    head.tag = FALSE, 
+    body.tag = FALSE, 
+    center = FALSE, 
+    digits = 4, 
+    star.symbol = "\\*")) 
 ```
 
 
@@ -817,7 +877,28 @@ Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.subs + pct.coffee + pct.cattle
 ```
 
 ```{r, results='asis'}
-gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and Production of Cash Crops (Hypotheses 3 and 4)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico", "% individual production", "% coffee production", "% cattle production", "% subsistence agriculture"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 14, 17, 15, 16, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1), groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = TRUE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, digits = 4, center = FALSE)) 
+#produce table using texreg package. htmlreg() produces a table that renders in R Markdown. The leading gsub() removes leading spaces that are created when the code is turned into html code - without the gsub() the table does not run.
+gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.b), extract.negbin(Two.c)), 
+    caption = "Table 2: Coefficients from the Negative Binomial Regression Models of Homicide on Collective Ownership, Agricultural Organization and 
+        Production of Cash Crops (Hypotheses 3 and 4)", 
+    caption.above = TRUE, 
+    stars = c(.05, .01), 
+    custom.coef.names = c("Constant", "% ejido surface area", "% communal surface area", "% units less than or equal to 5 hectares", "Thiel's land 
+        inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", 
+        "Medical doctors per 10,000", "Valley of Mexico", "% individual production", "% coffee production", "% cattle production", "% subsistence agricultu
+        re"), 
+    custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", 
+    include.intercept = TRUE, 
+    reorder.coef = c(2, 3, 14, 17, 15, 16, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1), 
+    groups = list("Collective ownership" = 1:2, "Organization of agricultural production" = 3:6, "Plot size and crop yields" = 7:9, "Demographic variables" 
+          = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), 
+    inline.css = TRUE, 
+    doctype = TRUE, 
+    html.tag = FALSE, 
+    head.tag = FALSE, 
+    body.tag = FALSE, 
+    digits = 4, 
+    center = FALSE)) 
 ```
 
 
@@ -832,7 +913,28 @@ Three <- glm.nb(hom.rate ~ weigh.elev + pct.ej + pct.com + pct.individual + pct.
 ```
 
 ```{r, results='asis'}
-gsub("\n[[:space:]]","", htmlreg(extract.negbin(Three), caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypothesis 5)", caption.above = TRUE, stars = c(.05, .01), custom.coef.names = c("Constant", "SD of altitude", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production", "% cattle production","% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", include.intercept = TRUE, reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1), groups = list("Local topography" = 1, "Collective ownership" = 2:3, "Organization of agricultural production" = 4:6, "Plot size and crop yields" = 7:9, "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 16), inline.css = TRUE, doctype = FALSE, html.tag = FALSE, head.tag = FALSE, body.tag = FALSE, center = FALSE, digits = 4, star.symbol = "\\*")) 
+#produce table using texreg package. htmlreg() produces a table that renders in R Markdown. The leading gsub() removes leading spaces that are created when the code is turned into html code - without the gsub() the table does not run.
+gsub("\n[[:space:]]","", htmlreg(extract.negbin(Three), 
+    caption = "Table 3: Coefficients from the Negative Binomial Regression Models of Homicide on Variation in Altitude (Hypothesis 5)", 
+    caption.above = TRUE, 
+    stars = c(.05, .01), 
+    custom.coef.names = c("Constant", "SD of altitude", "% ejido surface area", "% communal surface area", "% individual production", "% coffee production"
+        , "% cattle production","% units less than or equal to 5 hectares", "Thiel's land inequality", "Log maize yields", "Log population density", "% 
+        young males", "% indigenous", "Illiteracy rate", "% female-headed households", "Medical doctors per 10,000", "Valley of Mexico"), 
+    custom.note = "SEs in parentheses,         * P < .05, ** P < .01, two-tailed tests", 
+    include.intercept = TRUE, 
+    reorder.coef = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1), 
+    groups = list("Local topography" = 1, "Collective ownership" = 2:3, "Organization of agricultural production" = 4:6, "Plot size and crop yields" = 7:9, 
+        "Demographic variables" = 10:12, "Resource deprivation" = 13, "Family structure" = 14, "Access to medical attention" = 15, "Geographical region" = 
+        16), 
+    inline.css = TRUE, 
+    doctype = FALSE, 
+    html.tag = FALSE, 
+    head.tag = FALSE, 
+    body.tag = FALSE, 
+    center = FALSE, 
+    digits = 4, 
+    star.symbol = "\\*")) 
 ```
 
 *Conclusions*
