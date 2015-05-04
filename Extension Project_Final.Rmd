@@ -116,7 +116,7 @@ total_pop <- census %>%
          illiteracy = P8A14AN + P15YM_AN, 
          young.males = P_15A17_M + P_18A24_M) %>% #different categories in 2010 data
   select(-state, -mun, -P8A14AN, -P15YM_AN, -P_15A17_M, -P_18A24_M) %>%
-  filter(twn != "0", twn != "9999", twn != "9998")
+  filter(twn != "0", twn != "9999", twn != "9998") #these are not towns fields - they are information fields.
 
 total_pop$total.house[total_pop$total.house == "*"] <- NA
 total_pop$total.house <- as.numeric(as.character(total_pop$total.house))

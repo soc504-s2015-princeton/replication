@@ -63,10 +63,12 @@ censo.1 <- tbl_df(censo90) %>%
 mun.total <- censo.1 %>%
   filter(twn == 0)
 
+#9998 and 9999 are not towns fields - they are information fields.
 less.2500 <- censo.1 %>%
-  filter(twn != 0 & twn != 9998 & twn != 9999, total.pop < 2500) %>%
+  filter(twn != 0 & twn != 9998 & twn != 9999, total.pop < 2500) %>% 
   group_by(muncode) %>%
   summarise (pop.less.2500 = sum(total.pop))
+
 
 mun.total <- left_join(mun.total, less.2500, by = "muncode")
 
