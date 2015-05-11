@@ -403,7 +403,7 @@ main.df$log.corn.yield[is.na(main.df$log.corn.yield)] <- 0
 sample.main <- main.df %>%
   mutate(dummy.SOM = as.numeric(muncode %in% 15001:15125)) %>%
   filter(prop.less.2500 > .75) %>%
-  select(-name, -total.pop, -pct.poor, -pct.extpoor)
+  select(-name, -pct.poor, -pct.extpoor)
 
 ```
 
@@ -600,7 +600,7 @@ oax.for.map <- select(oaxaca.d, muncode, hom.rate)
 #filter to oaxaca sample 
 sample.oax <- oaxaca.d %>%  
   filter(prop.less.2500 > .75) %>% 
-  select(-distrito, -total.pop) 
+  select(-distrito) 
 ```
 
 **Bind two subsets into main sample**
@@ -608,10 +608,10 @@ sample.oax <- oaxaca.d %>%
 
 #need to add log pop density (log.pop.dens)
 sample.main <- sample.main %>%
-  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev, log.pop.dens)
+  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev, log.pop.dens, total.pop)
 
 sample.oax <- sample.oax %>%
-  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev, log.pop.dens)
+  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev, log.pop.dens, total.pop)
 
 sample <- rbind(sample.main, sample.oax)
 
@@ -750,9 +750,9 @@ extract.negbin <- function(model) {
 
 ```{r, warning=FALSE, error=FALSE}
 #Run models and build tables
-One.a <- glm.nb(hom.rate ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+One.a <- glm.nb(hom.rate ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 
-One.b <- glm.nb(hom.rate ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi +  HDI + pct.fem.house + docs_10k + dummy.SOM + log.pop.surface, data = sample) 
+One.b <- glm.nb(hom.rate ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi +  HDI + pct.fem.house + docs_10k + dummy.SOM + log.pop.surface + offset(log(total.pop*3)), data = sample) 
 ```
 
 ```{r, results='asis'}
@@ -787,11 +787,11 @@ gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.
 
 
 ```{r, warning=FALSE, error=FALSE}
-Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample)
+Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + offset(log(total.pop*3)), data = sample)
  
-Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + pct.coffee + pct.cattle + pct.individual, data = sample) 
+Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + pct.coffee + pct.cattle + pct.individual + offset(log(total.pop*3)), data = sample) 
  
-Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + pct.coffee + pct.cattle, data = sample) 
+Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + pct.coffee + pct.cattle + offset(log(total.pop*3)), data = sample) 
 ```
 
 ```{r, results='asis'}
@@ -825,7 +825,7 @@ gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.
 
 
 ```{r, warning=FALSE, error=FALSE}
-Three <- glm.nb(hom.rate ~ weigh.elev + pol1k + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM, data = sample) 
+Three <- glm.nb(hom.rate ~ weigh.elev + pol1k + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 ```
 
 ```{r, results = 'asis'}

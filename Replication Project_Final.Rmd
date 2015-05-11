@@ -831,11 +831,11 @@ extract.negbin <- function(model) {
 ```{r, warning=FALSE, error=FALSE}
 #Run models and build tables
 
-One.a <- glm.nb(hom.rate ~ pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
+One.a <- glm.nb(hom.rate ~ pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 
-One.b <- glm.nb(hom.rate ~ log.avg.plot + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
+One.b <- glm.nb(hom.rate ~ log.avg.plot + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 
-One.c <- glm.nb(hom.rate ~ log.pop.surface + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM,data = sample) 
+One.c <- glm.nb(hom.rate ~ log.pop.surface + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)),data = sample) 
 ```
 
 ```{r, results='asis'}
@@ -871,11 +871,11 @@ gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.
 
 ```{r, warning=FALSE, error=FALSE}
 
-Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample)
+Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample)
  
-Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
+Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
  
-Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.subs + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
+Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.subs + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 ```
 
 ```{r, results='asis'}
@@ -911,7 +911,7 @@ gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.
 ![Table 3: Continued)](data/Table3b.png)
 
 ```{r, warning=FALSE, error=FALSE}
-Three <- glm.nb(hom.rate ~ weigh.elev + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM, data = sample) 
+Three <- glm.nb(hom.rate ~ weigh.elev + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 ```
 
 ```{r, results='asis'}
