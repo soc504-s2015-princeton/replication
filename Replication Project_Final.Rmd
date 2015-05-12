@@ -45,7 +45,8 @@ library(SDMTools)
 
 **Municipalities, Indigenous Language-Speakers, Illiteracy**
 ```{r, warning=FALSE, error=FALSE}
-#load main 1990 censo database from inegi to the town level
+#load main 1990 censo database from inegi to the town level, latin1 option is used
+## in order for R to recognize special characters
 censo90 <- read.table("data/censo_1990_37_var.txt", header = TRUE, sep = "\t", encoding = "latin1")
 
 #create table with variables of interest and population
@@ -166,7 +167,7 @@ homicides[is.na(homicides)] <- 0
 #clean out NAs and others, sum 1990,1991, 1992
 homicides <- homicides %>%
   filter(!grepl("996|997|998|991|993|992", muncode), muncode > 1000) %>%
-  mutate(hom.total = hom.1992+ hom.1991 + hom.1990) %>%
+  mutate(hom.total = hom.1992 + hom.1991 + hom.1990) %>%
   select(muncode, hom.total)
 ```
 
@@ -416,19 +417,19 @@ df.main <- df.main %>%
          docs.per.10k = (doctors/total.pop) * 10000, 
          pct.fem.house = (fem.house/total.house) * 100,
          pct.young = (young.total/total.pop) * 100,
-         log.pop.dens = log10(total.pop/sqkm),
+         log.pop.dens = log(total.pop/sqkm),
          hom.rate = hom.total/(total.pop*3) * 100000,
          pct.ej = (ejidal/total_area) * 100, 
          pct.com = (comunal/total_area) * 100, 
          pct.individual = (private/total_area) * 100,
          pct.subs = (subs_units/total_units) * 100, 
-         log.corn.yield = log10(corn.tons/corn.ha), 
+         log.corn.yield = log(corn.tons/corn.ha), 
          pct.cattle = (total.cattle.units/total_prod_units) * 100,
          pct.coffee = (total.coffee.units/total_prod_units) * 100,
-         log.pop.surface = log10(total.pop/total_area), 
+         log.pop.surface = log(total.pop/total_area), 
          pct.upto5 = (units.to5/plot.total) * 100, 
-         log.avg.plot = log10(area.total/plot.total)) %>%
-  select(-twn, -no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -up19, -up24, -up29, -total, -total_prod_units, -total_units, -corn.tons, -corn.ha, -total.cattle.units, -subs_units, - total.coffee.units)
+         log.avg.plot = log(area.total/plot.total)) %>%
+  select(-twn, -no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -ejidal, -total_area, -comunal, -private, -up19, -up24, -up29, -total, -total_prod_units, -total_units, -corn.tons, -corn.ha, -total.cattle.units, -subs_units, - total.coffee.units)
 
 #fixing error values produced through calculation (dividing by 0, etc.)
 df.main$log.corn.yield <- gsub("NaN", "0", df.main$log.corn.yield)
@@ -575,7 +576,7 @@ oaxaca.dist <- oaxaca.dist  %>%
             no.literacy = sum(no.literacy), 
             no.lit.rate = (no.literacy/total.pop) * 100,
             sqkm = sum(sqkm), 
-            log.pop.dens = log10(total.pop/sqkm), 
+            log.pop.dens = log(total.pop/sqkm), 
             doctors = sum(doctors), 
             docs.per.10k = (doctors/total.pop)*10000, 
             fem.house = sum(fem.house), 
@@ -587,7 +588,7 @@ oaxaca.dist <- oaxaca.dist  %>%
             hom.rate = hom.total/(total.pop*3)*100000,
             ejidal = sum(ejidal), 
             total_area = sum(total_area), 
-            log.pop.surface = log10(total.pop/total_area), 
+            log.pop.surface = log(total.pop/total_area), 
             pct.ej = (ejidal/total_area) * 100,
             comunal = sum(comunal), 
             pct.com = (comunal/total_area) * 100,
@@ -601,15 +602,15 @@ oaxaca.dist <- oaxaca.dist  %>%
             pct.subs = (subs_units/total_units) * 100,
             corn.tons = sum(corn.tons), 
             corn.ha = sum(corn.ha), 
-            log.corn.yield = log10(corn.tons/corn.ha),
+            log.corn.yield = log(corn.tons/corn.ha),
             total.coffee.units = sum(total.coffee.units), 
             pct.coffee = (total.coffee.units/total_prod_units) * 100, 
             plot.total = sum(plot.total), 
             units.to5 = sum(units.to5), 
             pct.upto5 = (units.to5/plot.total) * 100, 
             area.total = sum(area.total), 
-            log.avg.plot = log10(area.total/plot.total)) %>%
-  select(-no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -hom.total, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -total.cattle.units, -subs_units, -total_units, -corn.tons, -corn.ha) %>%
+            log.avg.plot = log(area.total/plot.total)) %>%
+  select(-no.literacy, -indi, -pop.less.2500, -doctors, -fem.house, -total.house, -young.total, -sqkm, -ejidal, -total_area, -comunal, -private, -total_prod_units, -corn.tons, -total.cattle.units, -subs_units, -total_units, -corn.tons, -corn.ha) %>%
   mutate(muncode = distrito + 20000)
 
 #many NAs here, because only municipalities with coffee production were included in dataset. As such, an NA indicates 0 coffee production. 
@@ -689,10 +690,10 @@ oaxaca.mun <- df.oax %>%
 **JOIN OAXACA AND MAIN DATAFRAMES TO FINAL SAMPLE**
 ```{r, warning=FALSE, error=FALSE}
 sample.main <- sample.main %>%
-  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, theil, log.avg.plot, weigh.elev)
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, theil, log.avg.plot, weigh.elev, hom.total)
 
 sample.oax <- sample.oax %>%
-  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, theil, log.avg.plot, weigh.elev)
+  select(muncode, total.pop, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs.per.10k, pct.fem.house, pct.young, log.pop.dens, hom.rate, pct.ej, pct.com, pct.individual, pct.subs, log.corn.yield, pct.cattle, sd.elev, log.pop.surface, pct.upto5, pct.coffee, theil, log.avg.plot, weigh.elev, hom.total)
 
 sample <- rbind(sample.main, sample.oax)
 
@@ -719,67 +720,96 @@ Villarreal produced two maps with overlaid data as part of the paper; one showed
 ![Std. Deviation of Elevation in Mexican Municipalities ](data/elev.png)
 
 ```{r results='hide', message=FALSE, warning=FALSE}
-library(ggplot2)
-library(classInt)
-gpclibPermit()
+
+gpclibPermit() #needed by MapTools
 ```
 
 **Prepare Maps**
 *Using 1995 data because difference between 1995 and 1990 data is negligible*
 ```{r, warning=FALSE, error=FALSE}
 
+## bind the data for maps from the main and oaxaca data frames
 #map.data <- rbind(main.for.map, oax.for.map)
-# 
+
+## read the database file from the map files provided by INEGI. 
+## we could not dissolve the 570 Oaxaca municipalities into 30 distrticts in R, 
+## we dissolved the Oaxaca polygons using QGIS
 # map.dbf <-read.dbf("data/maps/municipios1995-distritos.dbf")
+
+## create the muncode vector in the map databaes
 # #map.dbf <- map.dbf %>%
 #    #mutate(CVE_MUN = as.numeric(as.character(CVE_MUN)),
 #    #       CVE_ENT = as.numeric(as.character(CVE_ENT)),
 #    #       muncode = (CVE_ENT*1000) + CVE_MUN)
-#             
+
+## join the data for the maps with the map database
 #map.merged <- left_join(map.dbf, map.data, by = "muncode" )
+
+##keep ordering from original map database so that polygons can be identified correctly
 # map.merged <- map.merged[order(map.merged$OID), ]
-# 
-# #write.dbf(map.dbf, "data/maps/old_municipios1995-distritos.dbf") 
+
+## save the original map database without the data from our data sample
+# #write.dbf(map.dbf, "data/maps/old_municipios1995-distritos.dbf")
+
+## write the modified map database so that the shapefile can call it.
 #write.dbf(map.merged, "data/maps/municipios1995-distritos.dbf")
+
+
+## we are taking the intervales form those used by Villarreal
+# breaks_hom <- c(0, 15, 45, 75, 15432.1)
+# labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
+# breaks_elev <- c(0, 100, 200, 390, 1040.154)
+# labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
+
+##preparing maps
+
+
+##read shapefile 
+# map.shp <-  readShapePoly("data/maps/municipios1995-distritos.shp")
 # 
-# #intervals for color-coding and legend
-# #classIntervals(map.data$sd.elev, n = 4)
-# #classIntervals(map.data$hom.rate, n = 4)
-breaks_hom <- c(0, 15, 45, 75, 15432.1)
-labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
-breaks_elev <- c(0, 100, 200, 390, 1040.154)
-labels_elev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
-
-#preparing maps
-map.shp <-  readShapePoly("data/maps/municipios1995-distritos.shp")
-
-p <- ggplot(map.shp@data, aes(sd_elev, hom_rate))
-
-
-map_geom <- fortify(map.shp, region = "muncode")
-
-map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
-
-map_geom$hom_breaks <- cut(map_geom$hom.rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
-
-map_geom$elev_breaks <- cut(map_geom$sd.elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
+# ## create slots for data from our sample
+# p <- ggplot(map.shp@data, aes(sd_elev, hom_rate))
+# 
+# ## modify shapefile form and identify muncode as region
+# map_geom <- fortify(map.shp, region = "muncode")
+# 
+# ## merge shapfile with saved slots for information from our data sample
+# map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
+# 
+# ## create breaks for intervals for homicides
+# map_geom$hom_breaks <- cut(map_geom$hom.rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
+# 
+# ## create breaks for intervales for sd elevation
+# map_geom$elev_breaks <- cut(map_geom$sd.elev, breaks = breaks_elev, labels = labels_elev, include.lowest = TRUE)
 
 ```
 
 **Map of Homicide Rate**
+
+![Homicide Rate 2006 - 2008](map_hom1992.png)
+
+
 ```{r, warning=FALSE, error=FALSE}
- Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
-  labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 1990 - 1992")
+# ## create map for homicide rate
+# Map1 <- ggplot(map_geom, aes(long,lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+#   labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 1990 - 1992")
 # 
- Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+# ## fill map for homicide rate
+#  Map1 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+# ggsave("map_hom1992.pdf")
 ```
 
 **Map of Standard Deviation of Elevation**
-```{r, warning=FALSE, error=FALSE}
-Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
-  labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
 
-Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+![Std. Deviation of Elevation](map_elev1992.png)
+```{r, warning=FALSE, error=FALSE}
+# ## create map for elevation
+# Map2 <- ggplot(map_geom, aes(long,lat, group = group, fill = elev_breaks))+ geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
+#   labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
+# 
+# ## fill map with sd elevation
+# Map2 + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
+# ggsave("map_elev1992.pdf")
 ```
 
 **Results**
@@ -831,11 +861,11 @@ extract.negbin <- function(model) {
 ```{r, warning=FALSE, error=FALSE}
 #Run models and build tables
 
-One.a <- glm.nb(hom.rate ~ pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
+One.a <- glm.nb(hom.total ~ pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 
-One.b <- glm.nb(hom.rate ~ log.avg.plot + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
+One.b <- glm.nb(hom.total ~ log.avg.plot + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 
-One.c <- glm.nb(hom.rate ~ log.pop.surface + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)),data = sample) 
+One.c <- glm.nb(hom.total ~ log.pop.surface + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)),data = sample) 
 ```
 
 ```{r, results='asis'}
@@ -871,11 +901,11 @@ gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.
 
 ```{r, warning=FALSE, error=FALSE}
 
-Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample)
+Two.a <- glm.nb(hom.total ~ pct.ej + pct.com + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample)
  
-Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
+Two.b <- glm.nb(hom.total ~ pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
  
-Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + pct.subs + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
+Two.c <- glm.nb(hom.total ~ pct.ej + pct.com + pct.subs + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 ```
 
 ```{r, results='asis'}
@@ -911,7 +941,7 @@ gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.
 ![Table 3: Continued)](data/Table3b.png)
 
 ```{r, warning=FALSE, error=FALSE}
-Three <- glm.nb(hom.rate ~ weigh.elev + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
+Three <- glm.nb(hom.total ~ weigh.elev + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + pct.upto5 + theil + log.corn.yield + log.pop.dens + pct.young + pct.indi + no.lit.rate + pct.fem.house + docs.per.10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 ```
 
 ```{r, results='asis'}
