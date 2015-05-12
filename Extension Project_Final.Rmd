@@ -25,7 +25,7 @@ library(SDMTools)
 library(readxl)
 library(readr)
 library(gdata)
-library(classInt)
+library(xlsx) # we need this because of problems with readxl
 ```
 
 **Adding New Variables**
@@ -188,7 +188,13 @@ total.main <- left_join(total.main, area, by = "muncode")
 ```{r, warning=FALSE, error=FALSE, message=FALSE}
 # agricultural variables --------------------------------------------------
 
-#production units
+## the grepl function is used in almost every sheet, because we need to 
+## to identify columns in the excel sheet by the number of blank spaces 
+## in each cell. 
+
+## the locfa function is used to fill in cells that are NA with the previous non-NA value, up until the next non-NA value.
+
+##production units
 prod_units <- read_excel("data/VIII Censo Agrícola 2007_Municipal.xls", sheet= "Cuadro 1", skip = 12,
                          col_names = FALSE) ## ignore crazy numbers in console
 
@@ -388,12 +394,12 @@ main.df <- main.df %>%
          pct.ej = (ejidal/surface) * 100, 
          pct.com = (comunal/surface) * 100, 
          pct.individual = (private/surface) * 100,
-         log.corn.yield = log10(corn.tons/corn.ha), 
+         log.corn.yield = log(corn.tons/corn.ha), 
          pct.cattle = (total.cattle.units/total.units) * 100,
          pct.coffee = (total.coffee.units/total.units) * 100,
-         log.pop.surface = log10(total.pop/surface),
-         log.pop.dens = log10(total.pop/sqkm)) %>%
-  select(-indi, -illiteracy, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -corn.ha, -total.cattle.units, -total.coffee.units, -mun.name, -state.name, -sqkm)
+         log.pop.surface = log(total.pop/surface),
+         log.pop.dens = log(total.pop/sqkm)) %>%
+  select(-indi, -illiteracy, -pop.less.2500, -fem.house, -total.house, -young.males, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -corn.ha, -total.cattle.units, -total.coffee.units, -mun.name, -state.name, -sqkm)
 
 #fixing error values produced through calculation (dividing by 0, etc.)
 main.df$log.corn.yield[main.df$log.corn.yield == "-Inf"] <- 0 
@@ -499,7 +505,7 @@ oaxaca.d <- oaxaca.d  %>%
             hom.rate = hom_total/(total.pop*3)*100000,
             ejidal = sum(ejidal), 
             surface = sum(surface), 
-            log.pop.surface = log10(total.pop/surface), 
+            log.pop.surface = log(total.pop/surface), 
             pct.ej = (ejidal/surface) * 100,
             comunal = sum(comunal), 
             pct.com = (comunal/surface) * 100, 
@@ -510,16 +516,16 @@ oaxaca.d <- oaxaca.d  %>%
             pct.cattle = (total.cattle.units/total.units) * 100, 
             corn.tons = sum(corn.tons), 
             corn.ha = sum(corn.ha), 
-            log.corn.yield = log10(corn.tons/corn.ha), 
+            log.corn.yield = log(corn.tons/corn.ha), 
             total.coffee.units = sum(total.coffee.units), 
             pct.coffee = (total.coffee.units/total.units) * 100, 
             pol1k = sum(pol1k)) %>%
-  select(-illiteracy, -indi, -pop.less.2500, -fem.house, -total.house, -young.males, -hom_total, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -total.cattle.units, -corn.tons, -corn.ha, -total.coffee.units) %>%
+  select(-illiteracy, -indi, -pop.less.2500, -fem.house, -total.house, -young.males, -ejidal, -surface, -comunal, -private, -total.units, -corn.tons, -total.cattle.units, -corn.tons, -corn.ha, -total.coffee.units) %>%
   mutate(muncode = distrito + 20000)
 
 ##Population density
 oaxaca.d <- left_join(oaxaca.d, area.oax, by = "muncode") %>%
-  mutate(log.pop.dens = log10(total.pop/sqkm)) %>%
+  mutate(log.pop.dens = log(total.pop/sqkm)) %>%
   select(-sqkm)
 
 ```
@@ -608,10 +614,10 @@ sample.oax <- oaxaca.d %>%
 
 #need to add log pop density (log.pop.dens)
 sample.main <- sample.main %>%
-  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev, log.pop.dens, total.pop)
+  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev, log.pop.dens, total.pop, hom_total)
 
 sample.oax <- sample.oax %>%
-  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev, log.pop.dens, total.pop)
+  select(muncode, dummy.SOM, prop.less.2500, pct.indi, no.lit.rate, docs_10k, pct.fem.house, pct.young, hom.rate, pct.ej, pct.com, pct.individual, log.corn.yield, pct.cattle, log.pop.surface,  pct.coffee, gini, pol1k, HDI, weigh.elev, log.pop.dens, total.pop, hom_total)
 
 sample <- rbind(sample.main, sample.oax)
 
@@ -626,28 +632,34 @@ sample <- rbind(sample.main, sample.oax)
 
 ```{r}
 
+## joins and then binds dataframes with information for maps
 # map_oax <- left_join(oax.for.map, elev.map.oax, by = "muncode")
 # 
 # map_final <- rbind(main.for.map, map_oax)
 # 
+## substitute with zeros values that beacuse NaN when wighing
 # map_final$weigh.elev[map_final$weigh.elev == "NaN"] <- 0
-# 
+
+## subsistute with zeros NA values. if this is not done, maps show empty polygons
 # map_final$sd.elev[is.na(map_final$sd.elev)] <- 0
-# 
+
+## loads original map database with modified INEGI shapefile for distritos in Oxaca
 # map.dbf <- read.dbf("data/maps/old-distritos_2010.dbf")
-# 
+
+## merge map database with data from our sampel to fill maps
 # map.merged <- left_join(map.dbf, map_final, by = "muncode" )
+
+## keep ID order so that polygons can be matshed
 # #map.merged <- map.merged[order(map.merged$OID), ]
-# 
+
+## write original file as old, write new merged file
 # write.dbf(map.dbf, "data/maps/old-distritos_2010.dbf") 
 # write.dbf(map.merged, "data/maps/distritos_2010.dbf")
 # 
-# #intervals for color-coding and legend
-# classIntervals(map_final$sd.elev, n = 4)
-# classIntervals(map_final$hom.rate, n = 4)
-# classIntervals(map_final$weigh.elev, n = 4)
-# 
-# 
+
+## intervales taken from the original Villarreal paper.
+## we are making three maps, we only produced two. the third oned with 
+## elevation weighed by population was just a test
 # breaks_hom <- c(0, 15, 45, 75, 284.8084)
 # labels_hom <- c('[0 - 15]', '[15 - 45]', '[45 - 75]', '[75 - ]')
 # 
@@ -658,50 +670,55 @@ sample <- rbind(sample.main, sample.oax)
 # labels_welev <- c('[0 - 100]', '[100 - 200]', '[200 - 390]', '[390 - ]')
 # 
 # #preparing maps
-# 
-# gpclibPermit()
+
+
+# gpclibPermit() # MapTools needs this
+
+## read shapfile
 # map.shp <-  readShapePoly("data/maps/distritos_2010.shp")
 # 
+##create slots for data in shapefile
 # p <- ggplot(map.shp@data, aes(sd_elev, hom_rate, weigh_elev))
 # 
-# 
+## fortify shpae file and set muncode as region 
 # map_geom <- fortify(map.shp, region = "muncode")
-# 
+
+## merge shape file data frame with slots with data
 # map_geom <- merge(map_geom, map.shp@data, by.x="id",  by.y="muncode")
-# 
+
+## cut the brakes in the data as determined by the intervals set earlier
 # map_geom$hom_breaks <- cut(map_geom$hom_rate, breaks = breaks_hom, labels = labels_hom, include.lowest = TRUE)
 # 
 # map_geom$sdelev_breaks <- cut(map_geom$sd_elev, breaks = breaks_sdelev, labels = labels_sdelev, include.lowest = TRUE)
 # 
 # map_geom$welev_breaks <- cut(map_geom$weigh_elev, breaks = breaks_welev, labels = labels_welev, include.lowest = TRUE)
 # 
-# 
+# make homicde maps
 # map_hom <- ggplot(data = map_geom, aes(x = long, y = lat, group = group, fill = hom_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
 #   labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Homicide Rate in Mexican Municipalities, 2006 - 2008")
 # 
+## fill and save as pdf homicide map
 # map_hom + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
 # ggsave("map_hom2008.pdf")
 # 
-# 
+## make elevation map
 # map_sd <- ggplot(data = map_geom, aes(x = long, y = lat, group = group, fill = sdelev_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
 #   labs(x="", y="",fill= "Std. Deviation of Elevation") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
-# 
+
+## fill elevation map and save PDF
 # map_sd + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
 # ggsave("map_sdelev2008.pdf")
 # 
-# 
+## make weighted elevaiton map
 # map_welev <- ggplot() + geom_polygon(data = map_geom, aes(x = long, y = lat, group = group, fill = welev_breaks)) + geom_polygon(fill = NA, color = "black", size = 0.25)+ coord_equal() + 
 #   labs(x="", y="",fill= "Homicide Rate") + ggtitle ("Standard Deviation of Elevation in Mexican Municipalities")
-# 
+## fill and save weighted elevation map
 # map_welev + scale_fill_brewer(palette = "Oranges") + guides(fill = guide_legend(reverse = TRUE)) + theme(axis.ticks = element_blank(), axis.text = element_blank()) + geom_polygon()
 # ggsave("map_welev2008.pdf")
 
 
 
 ```
-
-
-
 
 
 
@@ -750,9 +767,9 @@ extract.negbin <- function(model) {
 
 ```{r, warning=FALSE, error=FALSE}
 #Run models and build tables
-One.a <- glm.nb(hom.rate ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
+One.a <- glm.nb(hom_total ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 
-One.b <- glm.nb(hom.rate ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi +  HDI + pct.fem.house + docs_10k + dummy.SOM + log.pop.surface + offset(log(total.pop*3)), data = sample) 
+One.b <- glm.nb(hom_total ~ gini + log.corn.yield + log.pop.dens + pct.young + pct.indi +  HDI + pct.fem.house + docs_10k + dummy.SOM + log.pop.surface + offset(log(total.pop*3)), data = sample) 
 ```
 
 ```{r, results='asis'}
@@ -787,11 +804,11 @@ gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(One.a), extract.negbin(One.
 
 
 ```{r, warning=FALSE, error=FALSE}
-Two.a <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + offset(log(total.pop*3)), data = sample)
+Two.a <- glm.nb(hom_total ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + offset(log(total.pop*3)), data = sample)
  
-Two.b <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + pct.coffee + pct.cattle + pct.individual + offset(log(total.pop*3)), data = sample) 
+Two.b <- glm.nb(hom_total ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + pct.coffee + pct.cattle + pct.individual + offset(log(total.pop*3)), data = sample) 
  
-Two.c <- glm.nb(hom.rate ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + pct.coffee + pct.cattle + offset(log(total.pop*3)), data = sample) 
+Two.c <- glm.nb(hom_total ~ pct.ej + pct.com + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + pct.coffee + pct.cattle + offset(log(total.pop*3)), data = sample) 
 ```
 
 ```{r, results='asis'}
@@ -825,7 +842,7 @@ gsub("\n[[:space:]]","", htmlreg(list(extract.negbin(Two.a), extract.negbin(Two.
 
 
 ```{r, warning=FALSE, error=FALSE}
-Three <- glm.nb(hom.rate ~ weigh.elev + pol1k + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
+Three <- glm.nb(hom_total ~ weigh.elev + pol1k + pct.ej + pct.com + pct.individual + pct.coffee + pct.cattle + gini + log.corn.yield + log.pop.dens + pct.young + pct.indi + HDI + pct.fem.house + docs_10k + dummy.SOM + offset(log(total.pop*3)), data = sample) 
 ```
 
 ```{r, results = 'asis'}
